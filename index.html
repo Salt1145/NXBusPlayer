@@ -1,0 +1,3169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>GPS公交报站模拟器</title>
+    <style>
+* {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+:root {
+    color-scheme: light dark;
+    --bg-primary: Canvas;
+    --text-primary: CanvasText;
+    --card-bg: #111;
+    --card-bg-light: #1a1a1a;
+    --accent: #ff6600;
+    --accent-hover: #ff8833;
+    --accent-dark: #cc5500;
+    --success: #2ea84c;
+    --warning: #ffaa44;
+    --danger: #dc3545;
+    --danger-dark: #aa2222;
+    --info: #3a6ea5;
+    --border: #333;
+    --border-light: #444;
+}
+
+@media (prefers-color-scheme: light) {
+    :root {
+        --card-bg: #f5f5f5;
+        --card-bg-light: #e8e8e8;
+        --border: #ddd;
+        --border-light: #ccc;
+    }
+}
+
+body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, 'Segoe UI', 'Roboto', monospace;
+    margin: 0;
+    padding: 16px;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.app-container {
+    max-width: 1200px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* 红色滚动文字显示 */
+.led-wrapper {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+.led-frame {
+    display: block;
+    background: #111;
+    border-radius: 12px;
+    padding: 20px 24px;
+    width: 100%;
+    max-width: 900px;
+    overflow: hidden;
+    border: 1px solid #333;
+}
+
+#ledDisplay {
+    width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    position: relative;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#ledDisplay .scroll-text {
+    display: inline-block;
+    color: #ff0000;
+    font-size: 32px;
+    font-weight: bold;
+    font-family: 'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', sans-serif;
+    white-space: nowrap;
+    padding-right: 50px;
+    will-change: transform;
+}
+
+#ledDisplay .scroll-text.en {
+    font-size: 18px;
+    font-weight: normal;
+    font-family: 'Arial', 'Helvetica', sans-serif;
+}
+
+@media (max-width: 600px) {
+    .led-frame { padding: 12px 16px; }
+    #ledDisplay { min-height: 36px; }
+    #ledDisplay .scroll-text { font-size: 22px; }
+    #ledDisplay .scroll-text.en { font-size: 14px; }
+}
+
+/* 控制面板 */
+.control-panel {
+    background: var(--card-bg);
+    border-radius: 28px;
+    padding: 20px 24px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    position: relative;
+    backdrop-filter: blur(0px);
+    border: 1px solid var(--border);
+}
+
+/* 公告按钮 */
+.notice-btn {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    background: var(--card-bg-light);
+    border: 1px solid var(--border);
+    color: var(--warning);
+    font-size: 20px;
+    cursor: pointer;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    z-index: 10;
+}
+
+.notice-btn:hover {
+    background: var(--accent);
+    color: white;
+    transform: scale(1.05);
+    border-color: var(--accent);
+}
+
+/* 线路选择器 */
+.line-selector {
+    margin-bottom: 16px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.line-selector > span {
+    color: var(--warning);
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.line-selector select {
+    flex: 2;
+    min-width: 180px;
+    background: var(--card-bg-light);
+    color: var(--warning);
+    border: 1px solid var(--border);
+    padding: 10px 14px;
+    border-radius: 40px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.line-selector select:hover {
+    border-color: var(--accent);
+}
+
+.line-selector select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(255, 102, 0, 0.2);
+}
+
+/* 状态栏 */
+.status-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    background: var(--card-bg-light);
+    padding: 12px 16px;
+    border-radius: 32px;
+    margin: 16px 0 12px;
+    font-size: 13px;
+    font-weight: 500;
+    align-items: center;
+    border: 1px solid var(--border);
+}
+
+.status-bar > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 4px 12px;
+    border-radius: 32px;
+}
+
+.status-dir {
+    color: var(--warning);
+    background: rgba(0, 0, 0, 0.3);
+    padding: 4px 12px;
+    border-radius: 32px;
+    font-weight: 600;
+}
+
+.gps-info {
+    font-family: monospace;
+    font-size: 11px;
+    color: #88ff88;
+}
+
+.distance-info {
+    font-family: monospace;
+    font-size: 11px;
+    color: #ff8888;
+}
+
+.speed-info {
+    font-family: monospace;
+    font-size: 11px;
+    color: var(--warning);
+}
+
+/* 按钮行 */
+.button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 16px 0;
+    justify-content: center;
+}
+
+.btn {
+    background: var(--card-bg-light);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 10px 20px;
+    border-radius: 40px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.05);
+}
+
+.btn:active {
+    transform: translateY(1px);
+}
+
+.btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+    box-shadow: 0 2px 8px rgba(255, 102, 0, 0.3);
+}
+
+.btn-primary:hover {
+    background: var(--accent-hover);
+    box-shadow: 0 4px 12px rgba(255, 102, 0, 0.4);
+}
+
+.btn-warning {
+    background: var(--danger-dark);
+    border-color: var(--danger);
+    color: white;
+}
+
+.btn-warning:hover {
+    background: var(--danger);
+}
+
+.btn-secondary {
+    background: var(--info);
+    border-color: var(--info);
+    color: white;
+}
+
+/* 折叠面板 */
+.collapsible {
+    margin-top: 16px;
+    border-radius: 24px;
+    background: var(--card-bg-light);
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+
+.collapsible-header {
+    background: var(--card-bg-light);
+    padding: 14px 18px;
+    cursor: pointer;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+    transition: background 0.2s ease;
+}
+
+.collapsible-header:hover {
+    background: rgba(255, 102, 0, 0.1);
+}
+
+.collapsible-header .arrow {
+    transition: transform 0.3s ease;
+    font-size: 12px;
+    color: var(--warning);
+}
+
+.collapsible-header.open .arrow {
+    transform: rotate(90deg);
+}
+
+.collapsible-content {
+    padding: 0 18px;
+    display: none;
+    border-top: 1px solid var(--border);
+}
+
+.collapsible-content.open {
+    display: block;
+    padding: 18px;
+}
+
+/* 滑块样式 */
+.slider-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 10px 16px;
+    border-radius: 40px;
+    font-size: 13px;
+    flex-wrap: wrap;
+}
+
+input[type="range"] {
+    flex: 1;
+    min-width: 120px;
+    height: 4px;
+    -webkit-appearance: none;
+    background: var(--border);
+    border-radius: 4px;
+    outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.1s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.dual-slider {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: space-between;
+    margin: 12px 0;
+}
+
+.dual-slider .slider-label {
+    flex: 1;
+    min-width: 180px;
+}
+
+/* 预设按钮 */
+.preset-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 16px;
+    justify-content: center;
+    align-items: center;
+}
+
+.preset-btn {
+    background: var(--card-bg-light);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 6px 14px;
+    border-radius: 30px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.preset-btn:hover {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
+.preset-custom {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 4px 12px;
+    border-radius: 30px;
+}
+
+.preset-custom input {
+    width: 55px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    border-radius: 20px;
+    padding: 4px 8px;
+    font-size: 12px;
+    text-align: center;
+}
+
+.preset-custom input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+/* 站点列表 */
+.station-list {
+    max-height: 320px;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 20px;
+    padding: 8px;
+    margin-top: 12px;
+    border: 1px solid var(--border);
+}
+
+.station-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.station-list::-webkit-scrollbar-track {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+.station-list::-webkit-scrollbar-thumb {
+    background: var(--accent);
+    border-radius: 3px;
+}
+
+.station-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    margin: 6px 0;
+    border-radius: 32px;
+    background: var(--card-bg-light);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+}
+
+.station-item:hover {
+    border-color: var(--accent);
+    transform: translateX(4px);
+}
+
+.station-item.active {
+    background: var(--accent);
+    color: black;
+    font-weight: bold;
+    box-shadow: 0 2px 8px rgba(255, 102, 0, 0.3);
+}
+
+.station-name {
+    font-weight: 500;
+    flex: 2;
+}
+
+.station-type {
+    font-size: 11px;
+    opacity: 0.7;
+    margin: 0 8px;
+}
+
+/* 进度条 */
+.progress-section {
+    margin: 12px 0;
+    padding: 12px 16px;
+    background: var(--card-bg-light);
+    border-radius: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.progress-bar-container {
+    width: 100%;
+    background-color: var(--border);
+    border-radius: 20px;
+    overflow: hidden;
+    height: 10px;
+}
+
+.progress-fill {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, var(--warning), var(--accent));
+    transition: width 0.3s ease;
+    border-radius: 20px;
+}
+
+.progress-text {
+    font-size: 11px;
+    display: flex;
+    justify-content: space-between;
+    color: var(--warning);
+    font-weight: 500;
+}
+
+.progress-container {
+    width: 100%;
+    background-color: var(--border);
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    width: 0%;
+    height: 8px;
+    background: linear-gradient(90deg, var(--warning), var(--accent));
+    transition: width 0.2s ease;
+}
+
+.loading-text {
+    font-size: 12px;
+    color: var(--warning);
+    text-align: center;
+    margin-top: 8px;
+}
+
+.update-warning {
+    background: var(--danger-dark);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 24px;
+    font-size: 12px;
+    text-align: center;
+    margin-bottom: 12px;
+    display: none;
+    animation: pulse 1.5s infinite;
+}
+
+/* 版本信息 */
+.version {
+    text-align: center;
+    font-size: 10px;
+    color: #aaa;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+/* 弹窗 */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    animation: fadeIn 0.2s ease;
+}
+
+.modal-content {
+    background-color: var(--card-bg);
+    margin: 8% auto;
+    padding: 0;
+    border-radius: 32px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--border);
+    animation: slideUp 0.3s ease;
+}
+
+.modal-header {
+    padding: 16px 24px;
+    background: var(--card-bg-light);
+    border-radius: 32px 32px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: bold;
+    font-size: 18px;
+    border-bottom: 1px solid var(--border);
+}
+
+.modal-header button {
+    background: none;
+    border: none;
+    font-size: 28px;
+    cursor: pointer;
+    color: var(--warning);
+    transition: transform 0.2s ease;
+    line-height: 1;
+}
+
+.modal-header button:hover {
+    transform: scale(1.1);
+}
+
+.modal-body {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.modal-body img {
+    max-width: 100%;
+    border-radius: 16px;
+    margin: 12px 0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.modal-body video {
+    max-width: 100%;
+    border-radius: 16px;
+    margin: 12px 0;
+}
+
+/* 动画 */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    body {
+        padding: 10px;
+    }
+    
+    .led-frame {
+        padding: 20px 24px;
+        border-radius: 32px;
+    }
+    
+    .control-panel {
+        padding: 16px;
+    }
+    
+    .btn {
+        padding: 8px 16px;
+        font-size: 13px;
+    }
+    
+    .preset-btn {
+        padding: 4px 10px;
+        font-size: 11px;
+    }
+    
+    .dual-slider {
+        flex-direction: column;
+    }
+    
+    .notice-btn {
+        top: 12px;
+        right: 14px;
+        width: 36px;
+        height: 36px;
+        font-size: 18px;
+    }
+    
+    .status-bar {
+        font-size: 11px;
+        gap: 6px;
+    }
+    
+    .status-bar > span {
+        padding: 2px 8px;
+    }
+    
+    .station-item {
+        padding: 8px 12px;
+        font-size: 12px;
+    }
+}
+
+@media (max-width: 480px) {
+    .line-selector select {
+        min-width: 120px;
+        font-size: 12px;
+    }
+    
+    .button-row {
+        gap: 8px;
+    }
+    
+    .btn {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+}
+
+/* 工具类 */
+.hidden {
+    display: none !important;
+}
+
+.text-accent {
+    color: var(--accent);
+}
+
+.text-warning {
+    color: var(--warning);
+}
+
+/* GPS 警告 */
+.gps-warning {
+    color: var(--danger);
+    margin-left: 8px;
+    display: none;
+    font-weight: bold;
+}
+
+/* 坐标切换按钮 */
+#coordToggle {
+    cursor: pointer;
+    background: var(--card-bg-light);
+    padding: 4px 12px;
+    border-radius: 32px;
+    font-size: 11px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    border: 1px solid var(--border);
+}
+
+#coordToggle:hover {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
+/* 线路名称 */
+.line-name {
+    font-size: 18px;
+    font-weight: bold;
+    text-align: center;
+    padding: 8px;
+    background: linear-gradient(135deg, var(--warning), var(--accent));
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+}
+
+/* 格式徽章 */
+#formatBadge {
+    background: var(--card-bg-light);
+    padding: 4px 12px;
+    border-radius: 32px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #88ccff;
+    border: 1px solid var(--border);
+    transition: all 0.2s ease;
+}
+
+/* 音频元素隐藏 */
+audio {
+    display: none;
+}
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <div class="led-wrapper">
+        <div class="led-frame">
+            <div id="ledDisplay">
+                <span class="scroll-text" id="ledText"></span>
+            </div>
+        </div>
+    </div>
+    <div class="control-panel">
+        <button class="notice-btn" id="noticeBtn">🔔</button>
+        <div class="line-selector">
+            <span style="color:#ffaa44;">📌 线路选择</span>
+            <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                <input id="routeSearch" type="text" placeholder="搜索线路..." style="flex:1;min-width:120px;padding:4px 8px;border:1px solid #444;border-radius:4px;background:#1a1a1a;color:#eee;font-size:13px;">
+                <select id="routeSelect" style="flex:2;min-width:150px;"></select>
+            </div>
+            <button id="rescanBtn" class="btn btn-secondary" title="全量重新扫描所有线路">🔄 全量扫描</button>
+            <button id="scanRouteBtn" class="btn btn-primary" title="扫描当前线路">🔍 扫描当前</button>
+        </div>
+        <div id="updateWarning" class="update-warning">⚠️ 线路列表已更新，请点击重新扫描</div>
+        <div id="progressArea" style="display: none;">
+            <div class="progress-container"><div class="progress-bar" id="progressBar"></div></div>
+            <div class="loading-text" id="loadingText">加载中...</div>
+        </div>
+        <div id="lineName" class="line-name">线路加载中...</div>
+        <div class="status-bar">
+            <span>方向: <span id="dirName" class="status-dir">--</span></span>
+            <span id="formatBadge" style="background:#333;padding:2px 10px;border-radius:32px;font-size:12px;font-weight:500;color:#88ccff;">--</span>
+            <span>当前站: <span id="currentStationName">--</span> <span id="phaseIcon">(进站)</span></span>
+            <span class="distance-info" id="distanceStatus">距离: --</span>
+            <span class="speed-info" id="speedStatus">速度: -- km/h</span>
+            <span class="gps-info" id="gpsStatus">GPS: 等待定位...</span>
+            <span id="gpsDisabledWarning" class="gps-warning">⚠️ 此线路无GPS</span>
+            <span id="coordToggle" style="cursor:pointer;background:#2a2a2a;padding:2px 10px;border-radius:32px;font-size:12px;font-weight:500;">WGS-84</span>
+        </div>
+        <div id="progressSection" class="progress-section" style="display: none;">
+            <div class="progress-bar-container">
+                <div class="progress-fill" id="nextStopProgressFill"></div>
+            </div>
+            <div class="progress-text">
+                <span id="progressPercent">0%</span>
+                <span id="etaText">剩余 --</span>
+            </div>
+        </div>
+        <div class="button-row">
+            <button id="nextStopBtn" class="btn btn-primary">下一站</button>
+            <button id="replayBtn" class="btn btn-secondary">重放</button>
+            <button id="switchDirBtn" class="btn">切换方向</button>
+            <button id="interruptBtn" class="btn btn-warning">打断音频</button>
+        </div>
+        <div class="collapsible" id="sensitivityPanel">
+            <div class="collapsible-header" id="sensitivityHeader">
+                <span>⚙️ 灵敏度设置</span>
+                <span class="arrow">▶</span>
+            </div>
+            <div class="collapsible-content" id="sensitivityContent">
+                <div class="slider-label" id="generalSensitivityDiv">
+                    <span>📍 通用灵敏度</span>
+                    <span id="generalSensitivityVal">70</span> 米
+                    <input type="range" id="generalSensitivitySlider" min="1" max="150" step="1" value="70">
+                </div>
+                <div class="dual-slider">
+                    <div class="slider-label">
+                        🚪 出站灵敏度 <span id="exitSensitivityVal">70</span> 米
+                        <input type="range" id="exitSensitivitySlider" min="1" max="150" step="1" value="70">
+                    </div>
+                    <div class="slider-label">
+                        🚏 进站灵敏度 <span id="enterSensitivityVal">70</span> 米
+                        <input type="range" id="enterSensitivitySlider" min="1" max="150" step="1" value="70">
+                    </div>
+                </div>
+                <div class="preset-buttons">
+                    <button class="preset-btn" data-preset="1">预设1 (70/35)</button>
+                    <button class="preset-btn" data-preset="2">预设2 (35/70)</button>
+                    <div class="preset-custom" data-preset="3">
+                        <span>预设3</span>
+                        <input type="number" id="preset3Exit" placeholder="出站" step="1" min="1" max="150" style="width:50px">
+                        <input type="number" id="preset3Enter" placeholder="进站" step="1" min="1" max="150" style="width:50px">
+                        <button class="preset-save" data-preset="3">保存</button>
+                    </div>
+                    <div class="preset-custom" data-preset="4">
+                        <span>预设4</span>
+                        <input type="number" id="preset4Exit" placeholder="出站" step="1" min="1" max="150" style="width:50px">
+                        <input type="number" id="preset4Enter" placeholder="进站" step="1" min="1" max="150" style="width:50px">
+                        <button class="preset-save" data-preset="4">保存</button>
+                    </div>
+                    <div class="preset-custom" data-preset="5">
+                        <span>预设5</span>
+                        <input type="number" id="preset5Exit" placeholder="出站" step="1" min="1" max="150" style="width:50px">
+                        <input type="number" id="preset5Enter" placeholder="进站" step="1" min="1" max="150" style="width:50px">
+                        <button class="preset-save" data-preset="5">保存</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin:6px 0 4px 8px;">
+            <span style="font-size:13px;">点击站点直接跳站 (仅LED显示)</span>
+            <button id="reverseStationBtn" class="btn" style="margin-left:auto;padding:4px 12px;font-size:12px;">↕ 颠倒</button>
+        </div>
+        <div id="stationListContainer" class="station-list"></div>
+        <div class="version">版本 V1.7</div>
+    </div>
+</div>
+<div id="noticeModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span>📢 公告</span>
+            <button id="closeModalBtn">&times;</button>
+        </div>
+        <div class="modal-body" id="noticeBody">加载中...</div>
+    </div>
+</div>
+
+<script>
+(function(){
+    // ==================== 红色滚动文字（替代 LED 点阵）====================
+    const displayEl = document.getElementById('ledDisplay');
+    const textEl = document.getElementById('ledText');
+
+    let currentTimeoutId = null;
+    let loopActive = false;
+    let currentLoopCancel = null, welcomeLoopActive = false, welcomeLoopCancel = null;
+    let scrollAnimId = null;
+
+    function stopScroll() {
+        if (scrollAnimId) { cancelAnimationFrame(scrollAnimId); scrollAnimId = null; }
+        textEl.style.transform = 'translateX(0)';
+    }
+
+    function getScrollDuration() {
+        const containerW = displayEl.clientWidth;
+        const textW = textEl.scrollWidth;
+        if (textW <= containerW) return 0;
+        const distance = containerW + textW;
+        return Math.max(3000, distance * 10);
+    }
+
+    function startScroll() {
+        stopScroll();
+        const containerW = displayEl.clientWidth;
+        const textW = textEl.scrollWidth;
+        if (textW <= containerW) return;
+        const startX = containerW;
+        const endX = -textW;
+        const distance = startX - endX;
+        const duration = Math.max(3000, distance * 10);
+        let startTime = null;
+
+        textEl.style.transform = 'translateX(' + startX + 'px)';
+
+        function step(now) {
+            if (!loopActive && !welcomeLoopActive) { scrollAnimId = null; return; }
+            if (!startTime) { startTime = now; scrollAnimId = requestAnimationFrame(step); return; }
+            const elapsed = now - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            const x = startX + (endX - startX) * progress;
+            textEl.style.transform = 'translateX(' + x + 'px)';
+            if (progress < 1) {
+                scrollAnimId = requestAnimationFrame(step);
+            } else {
+                scrollAnimId = null;
+            }
+        }
+        scrollAnimId = requestAnimationFrame(step);
+    }
+
+    function stopLedAnimation() {
+        if (currentTimeoutId) { clearTimeout(currentTimeoutId); currentTimeoutId = null; }
+        stopScroll();
+        loopActive = false;
+    }
+
+    function displayTextOnLed(text, duration, onComplete) {
+        if (!text) { textEl.textContent = ''; stopLedAnimation(); if (onComplete) onComplete(); return; }
+        if (currentTimeoutId) { clearTimeout(currentTimeoutId); currentTimeoutId = null; }
+        textEl.textContent = text;
+        // start marquee scroll, extend duration so it doesn't cut off
+        requestAnimationFrame(() => {
+            if (loopActive || welcomeLoopActive) {
+                startScroll();
+                const scrollMs = getScrollDuration();
+                const actualDuration = scrollMs > 0 ? Math.max(duration, scrollMs + 1000) : duration;
+                if (currentTimeoutId) clearTimeout(currentTimeoutId);
+                currentTimeoutId = setTimeout(() => {
+                    currentTimeoutId = null;
+                    if (onComplete) onComplete();
+                }, actualDuration);
+            } else if (onComplete) {
+                currentTimeoutId = setTimeout(() => {
+                    currentTimeoutId = null;
+                    if (onComplete) onComplete();
+                }, duration);
+            }
+        });
+    }
+
+    function startInfiniteLoop(chineseText, englishText, chDuration, enDuration) {
+        stopLedAnimation();
+        loopActive = true;
+        const showChinese = () => {
+            if (!loopActive) return;
+            textEl.className = 'scroll-text';
+            displayTextOnLed(chineseText, chDuration, () => {
+                if (!loopActive) return;
+                showEnglish();
+            });
+        };
+        const showEnglish = () => {
+            if (!loopActive) return;
+            textEl.className = 'scroll-text en';
+            displayTextOnLed(englishText, enDuration, () => {
+                if (!loopActive) return;
+                showChinese();
+            });
+        };
+        showChinese();
+    }
+
+    function startDisplayLoop(chText, enText) {
+        if (currentLoopCancel) currentLoopCancel();
+        currentLoopCancel = () => {
+            loopActive = false;
+            stopLedAnimation();
+        };
+        startInfiniteLoop(chText, enText, 5000, 5000);
+    }
+    function stopDisplayLoop() { if (currentLoopCancel) currentLoopCancel(); currentLoopCancel = null; }
+    function startWelcomeLoop(welcomeText) {
+        if (welcomeLoopCancel) welcomeLoopCancel();
+        welcomeLoopActive = true;
+        const loop = () => {
+            if (!welcomeLoopActive) return;
+            textEl.className = 'scroll-text';
+            displayTextOnLed(welcomeText, 8000, () => { if (welcomeLoopActive) loop(); });
+        };
+        loop();
+        welcomeLoopCancel = () => { welcomeLoopActive = false; };
+    }
+    function stopWelcomeLoop() { if (welcomeLoopCancel) welcomeLoopCancel(); welcomeLoopActive = false; welcomeLoopCancel = null; }
+
+    // ==================== 辅助函数 ====================
+    function hexToGBK(hexStr) {
+        if (!hexStr) return '';
+        hexStr = hexStr.replace(/\s/g, '');
+        if (hexStr.startsWith('0x')) hexStr = hexStr.substring(2);
+        if (!/^[0-9A-Fa-f]+$/.test(hexStr)) return hexStr;
+        const bytes = [];
+        for (let i = 0; i < hexStr.length; i += 2) bytes.push(parseInt(hexStr.substr(i, 2), 16));
+        try { const decoder = new TextDecoder('gbk'); return decoder.decode(new Uint8Array(bytes)); } catch(e) { return hexStr; }
+    }
+    function cleanStationName(raw) {
+        if (!raw) return '';
+        let cleaned = raw.replace(/\x03下一站\s*/, '').replace(/\x03/, '');
+        cleaned = cleaned.replace(/^Next stop is\s*/i, '');
+        const ampIndex = cleaned.indexOf('&');
+        if (ampIndex !== -1) cleaned = cleaned.substring(0, ampIndex);
+        cleaned = cleaned.replace(/\x07.*$/, '');
+        return cleaned.trim();
+    }
+    function dmToDecimal(dmStr) {
+        if (!dmStr) return null;
+        let str = dmStr.trim().replace(/"/g, '');
+        let dotIndex = str.indexOf('.');
+        if (dotIndex === -1) return parseFloat(str);
+        let degLen = (str.startsWith('121') || str.startsWith('122')) ? 3 : 2;
+        let deg = parseInt(str.substring(0, degLen), 10);
+        let min = parseFloat(str.substring(degLen));
+        return deg + min / 60;
+    }
+    async function readMp3Metadata(url) {
+        try {
+            const response = await fetch(url);
+            if (!response.ok) return null;
+            const arrayBuffer = await response.arrayBuffer();
+            const dataView = new DataView(arrayBuffer);
+            if (arrayBuffer.byteLength < 10) return null;
+            const header = String.fromCharCode(dataView.getUint8(0), dataView.getUint8(1), dataView.getUint8(2));
+            if (header !== 'ID3') return null;
+            const sizeBytes = [dataView.getUint8(6), dataView.getUint8(7), dataView.getUint8(8), dataView.getUint8(9)];
+            let tagSize = 0;
+            for (let i = 0; i < 4; i++) tagSize = (tagSize << 7) | (sizeBytes[i] & 0x7F);
+            let offset = 10, end = offset + tagSize;
+            let title = '', artist = '';
+            while (offset + 10 <= end) {
+                const frameId = String.fromCharCode(dataView.getUint8(offset), dataView.getUint8(offset+1), dataView.getUint8(offset+2), dataView.getUint8(offset+3));
+                const frameSize = dataView.getUint32(offset+4);
+                if (frameSize === 0) break;
+                const frameDataOffset = offset + 10;
+                if (frameId === 'TIT2') {
+                    const encoding = dataView.getUint8(frameDataOffset);
+                    let textBytes = new Uint8Array(arrayBuffer, frameDataOffset + 1, frameSize - 1);
+                    let rawTitle = new TextDecoder(encoding === 0 ? 'latin1' : 'utf-16le').decode(textBytes);
+                    title = hexToGBK(rawTitle);
+                } else if (frameId === 'TPE1') {
+                    const encoding = dataView.getUint8(frameDataOffset);
+                    let textBytes = new Uint8Array(arrayBuffer, frameDataOffset + 1, frameSize - 1);
+                    let rawArtist = new TextDecoder(encoding === 0 ? 'latin1' : 'utf-16le').decode(textBytes);
+                    artist = hexToGBK(rawArtist);
+                }
+                offset += 10 + frameSize;
+                if (offset > end) break;
+            }
+            return { title, artist };
+        } catch(e) { return null; }
+    }
+
+    // ==================== 加载CSV数据（站名+坐标）====================
+    let csvStationMap = null;
+async function loadCsvData() {
+    if (csvStationMap) return csvStationMap;
+    const resp = await fetch('shanghai_bus.csv');
+    if (!resp.ok) return null;
+    const text = await resp.text();
+    const lines = text.split(/\r?\n/);
+    if (lines.length < 2) return null;
+    const headers = lines[0].split(',');
+    const data = [];
+    for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
+        const row = {};
+        const values = lines[i].split(',');
+        for (let j = 0; j < headers.length; j++) row[headers[j]] = values[j] || '';
+        data.push(row);
+    }
+
+    const lineGroups = new Map();
+    for (let idx = 0; idx < data.length; idx++) {
+        const row = data[idx];
+        const lineId = row.line_id;
+        if (!lineId) continue;
+        if (!lineGroups.has(lineId)) {
+            lineGroups.set(lineId, { rows: [], firstIndex: idx });
+        }
+        lineGroups.get(lineId).rows.push(row);
+    }
+
+    const mainLineMap = new Map();
+    for (const [lineId, group] of lineGroups.entries()) {
+        group.rows.sort((a, b) => parseInt(a.stop_sequence) - parseInt(b.stop_sequence));
+        const fullName = group.rows[0].line_name;
+        const mainName = fullName.replace(/\([^)]*\)/g, '').trim();
+        const stations = [];
+        for (const row of group.rows) {
+            const stopName = row.stop_name;
+            if (stopName.includes('招呼站') || stopName.includes('(临时站)') || stopName.includes('（临时站）')) continue;
+            stations.push({
+                name: stopName,
+                lat: parseFloat(row.lat),
+                lon: parseFloat(row.lng),
+                type: ''
+            });
+        }
+        if (stations.length === 0) continue;
+        stations[0].type = '起点站';
+        stations[stations.length - 1].type = '终点站';
+        for (let i = 1; i < stations.length - 1; i++) stations[i].type = '小站';
+
+        if (!mainLineMap.has(mainName)) {
+            mainLineMap.set(mainName, { lineInfos: [] });
+        }
+        mainLineMap.get(mainName).lineInfos.push({ lineId, firstIndex: group.firstIndex, stations });
+    }
+
+    const result = new Map();
+    for (const [mainName, entry] of mainLineMap.entries()) {
+        entry.lineInfos.sort((a, b) => a.firstIndex - b.firstIndex);
+        const upStations = entry.lineInfos[0] ? entry.lineInfos[0].stations : [];
+        const downStations = entry.lineInfos[1] ? entry.lineInfos[1].stations : [];
+        result.set(mainName, { 
+            upStations, 
+            downStations,
+            fromCsv: true,      // 标记来自 CSV
+            coordSystem: 'GCJ-02'  // CSV 数据使用 GCJ-02
+        });
+    }
+    csvStationMap = result;
+    return result;
+}
+
+    // 通用 CSV 线路匹配：尝试多种方式匹配文件夹名到 CSV key
+function findCsvLine(csvData, folder) {
+    if (!csvData) return null;
+    let line = csvData.get(folder);
+    if (line) return line;
+    let cleaned = folder.replace(/\([^)]*\)/g, '').replace(/（[^）]*）/g, '').replace(/[-–—]MP3$/i, '').trim();
+    if (cleaned !== folder) {
+        line = csvData.get(cleaned);
+        if (line) return line;
+    }
+    for (const [key, val] of csvData) {
+        const cleanKey = key.replace(/\([^)]*\)/g, '').replace(/（[^）]*）/g, '').replace(/[-–—]MP3$/i, '').trim();
+        if (cleaned.endsWith(cleanKey) || cleanKey.endsWith(cleaned)) return val;
+    }
+    return null;
+}
+
+    // ==================== 密码系统 ====================
+    let passwordMap = new Map();
+    let unlockedSet = new Set();
+
+    async function loadPasswords() {
+        try {
+            const resp = await fetch('passwd.wd');
+            if (!resp.ok) return;
+            const text = await resp.text();
+            text.split(/\r?\n/).forEach(line => {
+                line = line.trim();
+                if (!line) return;
+                const colonIdx = line.indexOf(':');
+                if (colonIdx === -1) return;
+                const folder = line.substring(0, colonIdx).trim();
+                const pwd = line.substring(colonIdx + 1).trim();
+                if (folder && pwd) passwordMap.set(folder, pwd);
+            });
+        } catch(e) {}
+    }
+
+    function checkRoutePassword(folder) {
+        if (!passwordMap.has(folder)) return true;
+        if (unlockedSet.has(folder)) return true;
+        const pwd = prompt(`请输入 "${folder}" 的密码:`);
+        if (pwd === passwordMap.get(folder)) {
+            unlockedSet.add(folder);
+            return true;
+        }
+        if (pwd !== null) alert('密码错误！');
+        return false;
+    }
+
+    // ==================== 文件夹存在性验证 ====================
+    async function folderExists(folder) {
+        try {
+            const res = await fetch(folder + '/', { method: 'HEAD' });
+            if (res.ok || res.status === 403 || res.status === 301) return true;
+        } catch(e) {}
+        try {
+            const res = await fetch(folder + '/001au-002-Up-Start.mp3', { method: 'HEAD' });
+            if (res.ok) return true;
+        } catch(e) {}
+        return false;
+    }
+
+    // ==================== 桩条目（未扫描线路）====================
+    function createStubEntry(folder, item) {
+        return {
+            _stub: true,
+            _folder: folder,
+            _item: item,
+            routeId: folder + '_stub',
+            routeName: folder + ' (未扫描)',
+            stations: [],
+            audioBasePath: folder + '/',
+            gpsDisabled: false,
+            format: 'stub',
+            dir: 'up'
+        };
+    }
+
+    function showStubScanUI(route) {
+        stationListDiv.innerHTML = '';
+        const msg = document.createElement('div');
+        msg.style.cssText = 'padding:20px;text-align:center;color:#ffaa44;font-size:14px;';
+        msg.innerHTML = `<div style="margin-bottom:12px;">线路 "${route._folder}" 尚未扫描</div>`;
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-primary';
+        btn.textContent = '🔍 扫描此线路';
+        btn.onclick = async () => {
+            btn.disabled = true;
+            btn.textContent = '扫描中...';
+            await scanSingleRoute(route._folder);
+        };
+        msg.appendChild(btn);
+        stationListDiv.appendChild(msg);
+    }
+
+    async function scanSingleRoute(folder) {
+        const lineListItems = await getLineListItems();
+        const item = lineListItems.find(i => i.folder === folder);
+        if (!item) { updateProgress(100, "未找到对应文件夹"); return; }
+        const cacheKey = 'gps_bus_routes_cache_v30';
+        updateProgress(0, `扫描 ${folder}...`);
+        // Remove existing stub/entries for this folder
+        allRoutes = allRoutes.filter(r => {
+            if (r._stub) return r._folder !== folder;
+            const f = r.routeId.replace(/_(up|down)$/, '');
+            return f !== folder;
+        });
+        const routes = await loadSingleFolder(folder, item, (p,t) => updateProgress(p,t));
+        if (routes && routes.length) {
+            allRoutes.push(...routes);
+        } else {
+            allRoutes.push(createStubEntry(folder, item));
+        }
+        const lineListContent = JSON.stringify(lineListItems);
+        const cacheData = { routes: allRoutes, linelistContent: lineListContent };
+        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+        populateRouteSelect();
+        // Find and switch to the first route from this folder
+        const idx = allRoutes.findIndex(r => {
+            if (r._stub) return false;
+            const f = r.routeId.replace(/_(up|down)$/, '');
+            return f === folder;
+        });
+        if (idx !== -1) { routeSelect.selectedIndex = idx; switchToRoute(idx); }
+        else if (allRoutes.length) { routeSelect.selectedIndex = 0; switchToRoute(0); }
+        updateProgress(100, `${folder} 扫描完成`);
+        setTimeout(() => progressArea.style.display = 'none', 1000);
+    }
+
+    // ==================== 解析linelist.txt（支持招呼站过滤）====================
+    async function getLineListItems() {
+        const resp = await fetch('linelist.txt');
+        if (!resp.ok) return [];
+        const text = await resp.text();
+        const lines = text.split(/\r?\n/).filter(s => s.trim().length > 0);
+        const items = [];
+        for (let line of lines) {
+            let folder = line, disableCsv = false, swapDirection = false;
+            if (line.startsWith('*')) { disableCsv = true; folder = line.substring(1).trim(); }
+            // 检查末尾是否有 ?
+            if (folder.endsWith('?')) {
+                swapDirection = true;
+                folder = folder.slice(0, -1).trim();
+            }
+            let upCount = null, downCount = null;
+            const matchCount = folder.match(/\(\((\d+),(\d+)\)\)$/);
+            if (matchCount) { folder = folder.substring(0, folder.lastIndexOf('((')); upCount = parseInt(matchCount[1],10); downCount = parseInt(matchCount[2],10); }
+            let filterStops = [];
+            const matchFilter = folder.match(/<([^>]+)>/);
+            if (matchFilter) {
+                filterStops = matchFilter[1].split(',').map(s => s.trim());
+                folder = folder.replace(/<[^>]+>/, '').trim();
+            }
+            items.push({ folder: folder.trim(), upCount, downCount, disableCsv, filterStops, swapDirection });
+        }
+        return items;
+    }
+
+    // ==================== APEP的typeB（stslist.json，无ID3，博闻文件名算法）====================
+    async function loadApepTypeB(folder, info, progressCallback) {
+        const stslistUrl = `${folder}/stslist.json`;
+        try {
+            const resp = await fetch(stslistUrl);
+            if (!resp.ok) return null;
+            const data = await resp.json();
+            
+            // 检查是否有必要的字段
+            if (!data.up && !data.down) return null;
+            
+            const lineName = data.lineName || folder;
+            const routes = [];
+            
+            // 处理上行
+            if (data.up && data.up.length) {
+                const stations = [];
+                for (let idx = 0; idx < data.up.length; idx++) {
+                    const s = data.up[idx];
+
+                    stations.push({
+                        index: idx,
+                        name: s.name,
+                        type: s.type || (idx === 0 ? '起点站' : (idx === data.up.length - 1 ? '终点站' : '小站')),
+                        lat: s.lat || null,
+                        lon: s.lon || null,
+                        englishName: s.englishName || s.name,
+                        // 上行编号从001连续：enter=idx, exit=idx+1
+                        enterAudio: idx === 0 ? null : `${String(idx).padStart(3, '0')}bu`,
+                        exitAudio: idx === data.up.length - 1 ? null : `${String(idx + 1).padStart(3, '0')}au`
+                    });
+                }
+                routes.push({
+                    routeId: `${folder}_up`,
+                    routeName: `${lineName} 上行`,
+                    stations: stations,
+                    audioBasePath: `${folder}/`,
+                    gpsDisabled: false,
+                    format: 'apepTypeB',
+                    dir: 'up'
+                });
+            }
+
+            // 处理下行（编号续接上行）
+            const downOffset = (data.up && data.up.length) ? data.up.length : 0;
+            if (data.down && data.down.length) {
+                const stations = [];
+                for (let idx = 0; idx < data.down.length; idx++) {
+                    const s = data.down[idx];
+
+                    stations.push({
+                        index: idx,
+                        name: s.name,
+                        type: s.type || (idx === 0 ? '起点站' : (idx === data.down.length - 1 ? '终点站' : '小站')),
+                        lat: s.lat || null,
+                        lon: s.lon || null,
+                        englishName: s.englishName || s.name,
+                        // 下行续接上行：enter=downOffset-1+idx, exit=downOffset+idx
+                        enterAudio: idx === 0 ? null : `${String(downOffset + idx - 1).padStart(3, '0')}bd`,
+                        exitAudio: idx === data.down.length - 1 ? null : `${String(downOffset + idx).padStart(3, '0')}ad`
+                    });
+                }
+                routes.push({
+                    routeId: `${folder}_down`,
+                    routeName: `${lineName} 下行`,
+                    stations: stations,
+                    audioBasePath: `${folder}/`,
+                    gpsDisabled: false,
+                    format: 'apepTypeB',
+                    dir: 'down'
+                });
+            }
+            
+            if (progressCallback) progressCallback(0, `加载APEP TypeB ${folder}...`);
+            return routes;
+        } catch(e) {
+            return null;
+        }
+    }
+
+    // ==================== 博闻有GPS格式 ====================
+    async function loadBowenGps(folder, info, progressCallback) {
+        // 检查是否有 gps.txt 且没有 station.json
+        let hasJson = false, hasGps = false;
+        try { const j = await fetch(`${folder}/station.json`, { method: 'HEAD' }); if (j.ok) hasJson = true; } catch(e) {}
+        if (hasJson) return null;
+        try { const g = await fetch(`${folder}/gps.txt`, { method: 'HEAD' }); if (g.ok) hasGps = true; } catch(e) {}
+        if (!hasGps) return null;
+
+        // 扫描 au/ad 文件
+        let upAuKeys = [], downAdKeys = [], consecutive404 = 0;
+        const maxScan = (info.upCount !== null && info.downCount !== null) ? Math.max(info.upCount, info.downCount) : 100;
+        for (let i = 1; i <= maxScan; i++) {
+            const pad = String(i).padStart(3, '0');
+            let auOk = false, adOk = false;
+            if (info.upCount === null || i <= info.upCount) {
+                try { const res = await fetch(`${folder}/${pad}au.mp3`, { method: 'HEAD' }); if (res.ok) { upAuKeys.push(`${pad}au`); auOk = true; } } catch(e) {}
+            }
+            if (info.downCount === null || i <= info.downCount) {
+                try { const res = await fetch(`${folder}/${pad}ad.mp3`, { method: 'HEAD' }); if (res.ok) { downAdKeys.push(`${pad}ad`); adOk = true; } } catch(e) {}
+            }
+            if (!auOk && !adOk) { consecutive404++; if (consecutive404 >= 3) break; } else consecutive404 = 0;
+            if (info.upCount !== null && i >= info.upCount && info.downCount !== null && i >= info.downCount) break;
+        }
+        if (upAuKeys.length === 0 && downAdKeys.length === 0) return null;
+
+        // 解析 gps.txt
+        let gpsMap = new Map();
+        let gpsUrl = `${folder}/gps.txt`;
+        try {
+            let gpsResp = await fetch(gpsUrl);
+            if (!gpsResp.ok) { gpsUrl = `${folder}/GPS.txt`; gpsResp = await fetch(gpsUrl); }
+            if (gpsResp.ok) {
+                const gpsText = await gpsResp.text();
+                const lines = gpsText.split(/\r?\n/);
+                for (const line of lines) {
+                    const match = line.match(/^(\d+[a-z]+)\{["']([0-9.]+)["'],["']([0-9.]+)["']/i);
+                    if (match) {
+                        const key = match[1];
+                        const lonDm = match[2], latDm = match[3];
+                        const lat = dmToDecimal(latDm), lon = dmToDecimal(lonDm);
+                        gpsMap.set(key, { lat, lon });
+                    }
+                }
+            }
+        } catch(e) {}
+
+        // 解析上行站点
+        const upAuWithMeta = [];
+        for (const key of upAuKeys) {
+            const num = parseInt(key.match(/^\d+/)[0], 10);
+            const url = `${folder}/${key}.mp3`;
+            const meta = await readMp3Metadata(url);
+            let chName = '', enName = '';
+            if (meta) { chName = cleanStationName(meta.title); enName = cleanStationName(meta.artist); }
+            if (!chName) chName = `第${num}站`;
+            if (!enName) enName = `Station ${num}`;
+            const gps = gpsMap.get(key) || { lat: null, lon: null };
+            upAuWithMeta.push({ num, chName, enName, exitLat: gps.lat, exitLon: gps.lon });
+            if (progressCallback) progressCallback(0, `扫描博闻有GPS ${folder}...`);
+        }
+        upAuWithMeta.sort((a,b)=>a.num-b.num);
+        const physicalUpCount = upAuWithMeta.length;
+        const upStations = [];
+        let virtualStartName = "起点站";
+        let virtualStartExitLat = null, virtualStartExitLon = null;
+        if (downAdKeys.length > 0) {
+            const lastAdKey = downAdKeys[downAdKeys.length - 1];
+            const url = `${folder}/${lastAdKey}.mp3`;
+            const meta = await readMp3Metadata(url);
+            if (meta) virtualStartName = cleanStationName(meta.title);
+            const gps = gpsMap.get(lastAdKey) || { lat: null, lon: null };
+            virtualStartExitLat = gps.lat; virtualStartExitLon = gps.lon;
+        }
+        upStations.push({ index:0, name:virtualStartName, type:'起点站', exitLat:virtualStartExitLat, exitLon:virtualStartExitLon, enterLat:null, enterLon:null, englishName:virtualStartName, enterAudio:null, exitAudio:'001au' });
+        for (let i=0;i<physicalUpCount;i++) {
+            const phys = upAuWithMeta[i];
+            const stationIndex = i+1;
+            const exitKey = String(stationIndex+1).padStart(3,'0')+'au';
+            const enterKey = (stationIndex===1)?'001bu':String(stationIndex).padStart(3,'0')+'bu';
+            const exitGps = gpsMap.get(exitKey)||{lat:null,lon:null};
+            const enterGps = gpsMap.get(enterKey)||{lat:null,lon:null};
+            upStations.push({ index:stationIndex, name:phys.chName, type:(i===physicalUpCount-1)?'终点站':'小站', exitLat:exitGps.lat, exitLon:exitGps.lon, enterLat:enterGps.lat, enterLon:enterGps.lon, englishName:phys.enName, enterAudio:enterKey, exitAudio:exitKey });
+        }
+        // 下行站点
+        const downStations = [];
+        if (downAdKeys.length > 0) {
+            const downAdWithMeta = [];
+            for (const key of downAdKeys) {
+                const num = parseInt(key.match(/^\d+/)[0], 10);
+                const url = `${folder}/${key}.mp3`;
+                const meta = await readMp3Metadata(url);
+                let chName = '', enName = '';
+                if (meta) { chName = cleanStationName(meta.title); enName = cleanStationName(meta.artist); }
+                if (!chName) chName = `第${num}站`;
+                if (!enName) enName = `Station ${num}`;
+                const gps = gpsMap.get(key) || { lat: null, lon: null };
+                downAdWithMeta.push({ num, chName, enName, exitLat: gps.lat, exitLon: gps.lon });
+                if (progressCallback) progressCallback(0, `扫描博闻有GPS ${folder}...`);
+            }
+            downAdWithMeta.sort((a,b)=>a.num-b.num);
+            const physicalDownCount = downAdWithMeta.length;
+            const downStartNum = physicalUpCount + 1;
+            let downVirtualName = "下行起点站";
+            if (upStations.length > 0) downVirtualName = upStations[upStations.length-1].name;
+            const downExitKey = String(downStartNum).padStart(3,'0')+'ad';
+            const downExitGps = gpsMap.get(downExitKey)||{lat:null,lon:null};
+            downStations.push({ index:0, name:downVirtualName, type:'起点站', exitLat:downExitGps.lat, exitLon:downExitGps.lon, enterLat:null, enterLon:null, englishName:downVirtualName, enterAudio:null, exitAudio:downExitKey });
+            for (let i=0;i<physicalDownCount;i++) {
+                const phys = downAdWithMeta[i];
+                const stationIndex = i+1;
+                const exitKey = String(downStartNum+stationIndex).padStart(3,'0')+'ad';
+                const enterKey = (stationIndex===1)?String(downStartNum).padStart(3,'0')+'bd':String(downStartNum+stationIndex-1).padStart(3,'0')+'bd';
+                const exitGps = gpsMap.get(exitKey)||{lat:null,lon:null};
+                const enterGps = gpsMap.get(enterKey)||{lat:null,lon:null};
+                downStations.push({ index:stationIndex, name:phys.chName, type:(i===physicalDownCount-1)?'终点站':'小站', exitLat:exitGps.lat, exitLon:exitGps.lon, enterLat:enterGps.lat, enterLon:enterGps.lon, englishName:phys.enName, enterAudio:enterKey, exitAudio:exitKey });
+            }
+        }
+        const routes = [];
+        if(upStations.length) routes.push({ routeId:`${folder}_up`, routeName:`${folder} 上行`, stations:upStations, audioBasePath:`${folder}/`, gpsDisabled:false, format:'bowen', dir:'up' });
+        if(downStations.length) routes.push({ routeId:`${folder}_down`, routeName:`${folder} 下行`, stations:downStations, audioBasePath:`${folder}/`, gpsDisabled:false, format:'bowen', dir:'down' });
+        return routes;
+    }
+
+    async function loadZhongAn(folder, info, progressCallback) {
+        // 检查是否有 cu 文件（判定为中安格式）
+        let hasCu = false;
+        try { const cu = await fetch(`${folder}/001cu.mp3`, { method: 'HEAD' }); if (cu.ok) hasCu = true; } catch(e) {}
+        if (!hasCu) return null;
+
+        const csvData = await loadCsvData();
+        if (!csvData) return null;
+        let csvLine = findCsvLine(csvData, folder);
+        if (!csvLine || (csvLine.upStations.length === 0 && csvLine.downStations.length === 0)) return null;
+
+        // 根据 swapDirection 交换上下行
+        if (info.swapDirection) {
+            const temp = csvLine.upStations;
+            csvLine.upStations = csvLine.downStations;
+            csvLine.downStations = temp;
+        }
+
+        // 扫描 cu 文件数量（上行物理站数，不含起点）
+        let cuCount = 0;
+        let consecutive404 = 0;
+        const maxScan = (info.upCount !== null && info.downCount !== null) ? Math.max(info.upCount, info.downCount) : 100;
+        for (let i = 1; i <= maxScan; i++) {
+            const pad = String(i).padStart(3, '0');
+            try {
+                const res = await fetch(`${folder}/${pad}cu.mp3`, { method: 'HEAD' });
+                if (res.ok) cuCount++;
+                else { consecutive404++; if (consecutive404 >= 3) break; }
+            } catch(e) { consecutive404++; if (consecutive404 >= 3) break; }
+        }
+        if (cuCount === 0) return null;
+        const M = cuCount;  // 上行物理站数（不含起点）
+
+        // 辅助：从 CSV 获取站名和坐标（带备注）
+        const getCsvStation = (csvStations, idx) => {
+            if (idx >= csvStations.length) return null;
+            const s = csvStations[idx];
+            const { name, remark } = parseStationNameWithRemark(s.name);
+            return { name, remark, lat: s.lat, lon: s.lon };
+        };
+
+        // ========== 构建上行站点 ==========
+        const buildUpStations = () => {
+            let filtered = csvLine.upStations.filter(s => !info.filterStops.includes(s.name));
+            const stations = [];
+            // 起点站（index 0）
+            const startCsv = getCsvStation(filtered, 0);
+            const startName = startCsv ? startCsv.name : "起点站";
+            const startRemark = startCsv ? startCsv.remark : "";
+            stations.push({
+                index: 0,
+                name: startName,
+                remark: startRemark,
+                type: '起点站',
+                lat: startCsv?.lat || null, lon: startCsv?.lon || null,
+                exitLat: startCsv?.lat || null, exitLon: startCsv?.lon || null,
+                enterLat: null, enterLon: null,
+                englishName: startName,
+                enterAudio: null,
+                exitAudio: '001cu'   // 起点站出站固定
+            });
+            // 物理站：第 1 站到第 M 站
+            for (let i = 1; i <= M; i++) {
+                const csvStation = getCsvStation(filtered, i);
+                let stationName = csvStation ? csvStation.name : `第${i}站`;
+                let remark = csvStation ? csvStation.remark : "";
+                const stationType = (i === M) ? '终点站' : '小站';
+                // 出站编号 = i+1
+                const exitNum = i + 1;
+                // 进站编号 = i+1
+                const enterNum = i + 1;
+                const exitAudio = `${String(exitNum).padStart(3,'0')}cu`;
+                const enterAudio = `${String(enterNum).padStart(3,'0')}au+${String(enterNum).padStart(3,'0')}bu`;
+                stations.push({
+                    index: i,
+                    name: stationName,
+                    remark: remark,
+                    type: stationType,
+                    lat: csvStation?.lat || null, lon: csvStation?.lon || null,
+                    exitLat: csvStation?.lat || null, exitLon: csvStation?.lon || null,
+                    enterLat: csvStation?.lat || null, enterLon: csvStation?.lon || null,
+                    englishName: stationName,
+                    enterAudio: enterAudio,
+                    exitAudio: exitAudio
+                });
+            }
+            return stations;
+        };
+
+// ========== 构建下行站点（编号偏移）==========
+const buildDownStations = () => {
+    let filtered = csvLine.downStations.filter(s => !info.filterStops.includes(s.name));
+    if (filtered.length === 0) return [];
+    const stations = [];
+    // 下行起点站出站编号 = M + 1（不是 M+2）
+    const startExitNum = M + 2;
+    const startCsv = getCsvStation(filtered, 0);
+    const startName = startCsv ? startCsv.name : "下行起点站";
+    const startRemark = startCsv ? startCsv.remark : "";
+    stations.push({
+        index: 0,
+        name: startName,
+        remark: startRemark,
+        type: '起点站',
+        lat: startCsv?.lat || null, lon: startCsv?.lon || null,
+        exitLat: startCsv?.lat || null, exitLon: startCsv?.lon || null,
+        enterLat: null, enterLon: null,
+        englishName: startName,
+        enterAudio: null,
+        exitAudio: `${String(startExitNum).padStart(3, '0')}cd`
+    });
+    // 下行物理站
+    for (let i = 1; i <= M; i++) {
+        const csvStation = getCsvStation(filtered, i);
+        if (!csvStation) break;
+        const stationName = csvStation.name;
+        const remark = csvStation.remark;
+        const stationType = (i === M) ? '终点站' : '小站';
+        // ========== 修复点：出站编号 = startExitNum + i ==========
+        const exitNum = startExitNum + i;
+        // 进站编号 = startExitNum + i（与出站相同）
+        const enterNum = startExitNum + i;
+        const exitAudio = `${String(exitNum).padStart(3, '0')}cd`;
+        const enterAudio = `${String(enterNum).padStart(3, '0')}ad+${String(enterNum).padStart(3, '0')}bd`;
+        stations.push({
+            index: i,
+            name: stationName,
+            remark: remark,
+            type: stationType,
+            lat: csvStation.lat, lon: csvStation.lon,
+            exitLat: csvStation.lat, exitLon: csvStation.lon,
+            enterLat: csvStation.lat, enterLon: csvStation.lon,
+            englishName: stationName,
+            enterAudio: enterAudio,
+            exitAudio: exitAudio
+        });
+    }
+    return stations;
+};
+        const routes = [];
+        const upStations = buildUpStations();
+        if (upStations.length) {
+            routes.push({
+                routeId: `${folder}_up`,
+                routeName: `${folder} 上行`,
+                stations: upStations,
+                audioBasePath: `${folder}/`,
+                gpsDisabled: false,
+                format: 'zhongAn',
+                dir: 'up'
+            });
+        }
+        const downStations = buildDownStations();
+        if (downStations.length) {
+            routes.push({
+                routeId: `${folder}_down`,
+                routeName: `${folder} 下行`,
+                stations: downStations,
+                audioBasePath: `${folder}/`,
+                gpsDisabled: false,
+                format: 'zhongAn',
+                dir: 'down'
+            });
+        }
+        return routes;
+    }
+
+    async function loadBowenNoGps(folder, info, progressCallback) {
+        // 检查是否有 au/ad 文件且没有 station.json、gps.txt 和 cu 文件
+        let hasJson = false, hasGps = false, hasCu = false;
+        try { const j = await fetch(`${folder}/station.json`, { method: 'HEAD' }); if (j.ok) hasJson = true; } catch(e) {}
+        try { const g = await fetch(`${folder}/gps.txt`, { method: 'HEAD' }); if (g.ok) hasGps = true; } catch(e) {}
+        try { const c = await fetch(`${folder}/001cu.mp3`, { method: 'HEAD' }); if (c.ok) hasCu = true; } catch(e) {}
+        if (hasJson || hasGps || hasCu) return null;
+
+        // 扫描 au/ad 文件
+        let upAuKeys = [], downAdKeys = [], consecutive404 = 0;
+        const maxScan = (info.upCount !== null && info.downCount !== null) ? Math.max(info.upCount, info.downCount) : 100;
+        for (let i = 1; i <= maxScan; i++) {
+            const pad = String(i).padStart(3, '0');
+            let auOk = false, adOk = false;
+            if (info.upCount === null || i <= info.upCount) {
+                try { const res = await fetch(`${folder}/${pad}au.mp3`, { method: 'HEAD' }); if (res.ok) { upAuKeys.push(`${pad}au`); auOk = true; } } catch(e) {}
+            }
+            if (info.downCount === null || i <= info.downCount) {
+                try { const res = await fetch(`${folder}/${pad}ad.mp3`, { method: 'HEAD' }); if (res.ok) { downAdKeys.push(`${pad}ad`); adOk = true; } } catch(e) {}
+            }
+            if (!auOk && !adOk) { consecutive404++; if (consecutive404 >= 3) break; } else consecutive404 = 0;
+        }
+        // 注意：即使没有扫描到任何音频文件，也不应该返回 null，因为可能只有 CSV 数据？但博闻格式至少要有音频文件
+        if (upAuKeys.length === 0 && downAdKeys.length === 0) return null;
+
+        const csvData = await loadCsvData();
+        if (!csvData) return null;
+        const csvLine = findCsvLine(csvData, folder);
+        // 如果没有 CSV 数据，仍然可以生成线路（站名从音频元数据获取，但无坐标）
+        // 但用户要求"无GPS无站名的博闻格式不能忽略"，所以即使没有 CSV，也生成无坐标的线路（gpsDisabled: true）
+        const hasCsv = !!csvLine;
+
+        // 辅助：从 CSV 获取站名和坐标（带备注）
+        const getCsvStation = (csvStations, idx) => {
+            if (!csvStations || idx >= csvStations.length) return null;
+            const s = csvStations[idx];
+            const { name, remark } = parseStationNameWithRemark(s.name);
+            return { name, remark, lat: s.lat, lon: s.lon };
+        };
+
+        // ========== 解析上行音频元数据 ==========
+        const upAuWithMeta = [];
+        for (const key of upAuKeys) {
+            const num = parseInt(key.match(/^\d+/)[0], 10);
+            const url = `${folder}/${key}.mp3`;
+            const meta = await readMp3Metadata(url);
+            let chName = '', enName = '';
+            if (meta) { chName = cleanStationName(meta.title); enName = cleanStationName(meta.artist); }
+            if (!chName) chName = `第${num}站`;
+            if (!enName) enName = `Station ${num}`;
+            upAuWithMeta.push({ num, chName, enName });
+            if (progressCallback) progressCallback(0, `扫描博闻无GPS ${folder}...`);
+        }
+        upAuWithMeta.sort((a,b)=>a.num-b.num);
+        const physicalUpCount = upAuWithMeta.length;
+
+        // 构建上行站点
+        const upStations = [];
+        // 起点站：名称从下行最后一个 ad 的元数据或 CSV 获取
+        let virtualStartName = "起点站";
+        if (downAdKeys.length > 0) {
+            const lastAdKey = downAdKeys[downAdKeys.length - 1];
+            const url = `${folder}/${lastAdKey}.mp3`;
+            const meta = await readMp3Metadata(url);
+            if (meta) virtualStartName = cleanStationName(meta.title);
+        }
+        let startCsv = null;
+        if (hasCsv) startCsv = getCsvStation(csvLine.upStations, 0);
+        const startName = (startCsv ? startCsv.name : virtualStartName);
+        const startRemark = startCsv ? startCsv.remark : "";
+        const startLat = startCsv ? startCsv.lat : null;
+        const startLon = startCsv ? startCsv.lon : null;
+        upStations.push({
+            index: 0,
+            name: startName,
+            remark: startRemark,
+            type: '起点站',
+            exitLat: startLat, exitLon: startLon,
+            enterLat: null, enterLon: null,
+            englishName: startName,
+            enterAudio: null,
+            exitAudio: '001au'
+        });
+
+        for (let i = 0; i < physicalUpCount; i++) {
+            const phys = upAuWithMeta[i];
+            const stationIndex = i+1;
+            const exitKey = String(stationIndex+1).padStart(3,'0')+'au';
+            const enterKey = (stationIndex===1)?'001bu':String(stationIndex).padStart(3,'0')+'bu';
+            // 从 CSV 获取站名和坐标
+            let csvStation = null;
+            if (hasCsv) csvStation = getCsvStation(csvLine.upStations, stationIndex);
+            let stationName = phys.chName;
+            let remark = "";
+            let lat = null, lon = null;
+            if (csvStation) {
+                stationName = csvStation.name;
+                remark = csvStation.remark;
+                lat = csvStation.lat;
+                lon = csvStation.lon;
+            } else if (stationName.startsWith('第') && stationName.endsWith('站')) {
+                // 如果元数据站名是"第X站"且无 CSV，保留原名，无坐标
+            }
+            const stationType = (i === physicalUpCount-1) ? '终点站' : '小站';
+            upStations.push({
+                index: stationIndex,
+                name: stationName,
+                remark: remark,
+                type: stationType,
+                exitLat: lat, exitLon: lon,
+                enterLat: lat, enterLon: lon,
+                englishName: phys.enName,
+                enterAudio: enterKey,
+                exitAudio: exitKey
+            });
+        }
+
+        // ========== 下行站点 ==========
+        const downAdWithMeta = [];
+        for (const key of downAdKeys) {
+            const num = parseInt(key.match(/^\d+/)[0], 10);
+            const url = `${folder}/${key}.mp3`;
+            const meta = await readMp3Metadata(url);
+            let chName = '', enName = '';
+            if (meta) { chName = cleanStationName(meta.title); enName = cleanStationName(meta.artist); }
+            if (!chName) chName = `第${num}站`;
+            if (!enName) enName = `Station ${num}`;
+            downAdWithMeta.push({ num, chName, enName });
+            if (progressCallback) progressCallback(0, `扫描博闻无GPS ${folder}...`);
+        }
+        downAdWithMeta.sort((a,b)=>a.num-b.num);
+        const physicalDownCount = downAdWithMeta.length;
+
+        const downStations = [];
+        // 下行起点站名称：从上行终点站或 CSV 获取
+        let downVirtualName = "下行起点站";
+        if (upStations.length > 0) downVirtualName = upStations[upStations.length-1].name;
+        let downStartCsv = null;
+        if (hasCsv) downStartCsv = getCsvStation(csvLine.downStations, 0);
+        const downStartName = downStartCsv ? downStartCsv.name : downVirtualName;
+        const downStartRemark = downStartCsv ? downStartCsv.remark : "";
+        const downStartLat = downStartCsv ? downStartCsv.lat : null;
+        const downStartLon = downStartCsv ? downStartCsv.lon : null;
+        const downStartNum = physicalUpCount + 1;
+        downStations.push({
+            index: 0,
+            name: downStartName,
+            remark: downStartRemark,
+            type: '起点站',
+            exitLat: downStartLat, exitLon: downStartLon,
+            enterLat: null, enterLon: null,
+            englishName: downStartName,
+            enterAudio: null,
+            exitAudio: `${String(downStartNum).padStart(3,'0')}ad`
+        });
+
+        for (let i = 0; i < physicalDownCount; i++) {
+            const phys = downAdWithMeta[i];
+            const stationIndex = i+1;
+            const exitKey = String(downStartNum + stationIndex).padStart(3,'0')+'ad';
+            const enterKey = (stationIndex===1)?String(downStartNum).padStart(3,'0')+'bd':String(downStartNum+stationIndex-1).padStart(3,'0')+'bd';
+            let csvStation = null;
+            if (hasCsv) csvStation = getCsvStation(csvLine.downStations, stationIndex);
+            let stationName = phys.chName;
+            let remark = "";
+            let lat = null, lon = null;
+            if (csvStation) {
+                stationName = csvStation.name;
+                remark = csvStation.remark;
+                lat = csvStation.lat;
+                lon = csvStation.lon;
+            } else if (stationName.startsWith('第') && stationName.endsWith('站')) {
+                // 保留原名
+            }
+            const stationType = (i === physicalDownCount-1) ? '终点站' : '小站';
+            downStations.push({
+                index: stationIndex,
+                name: stationName,
+                remark: remark,
+                type: stationType,
+                exitLat: lat, exitLon: lon,
+                enterLat: lat, enterLon: lon,
+                englishName: phys.enName,
+                enterAudio: enterKey,
+                exitAudio: exitKey
+            });
+        }
+
+        const routes = [];
+        if (upStations.length) {
+            routes.push({
+                routeId: `${folder}_up`,
+                routeName: `${folder} 上行`,
+                stations: upStations,
+                audioBasePath: `${folder}/`,
+                gpsDisabled: !hasCsv,  // 有 CSV 则启用 GPS，否则无 GPS
+                format: 'bowen',
+                dir: 'up'
+            });
+        }
+        if (downStations.length) {
+            routes.push({
+                routeId: `${folder}_down`,
+                routeName: `${folder} 下行`,
+                stations: downStations,
+                audioBasePath: `${folder}/`,
+                gpsDisabled: !hasCsv,
+                format: 'bowen',
+                dir: 'down'
+            });
+        }
+        return routes;
+    }
+
+    // ==================== APEP格式 ====================
+    async function loadApep(folder, info) {
+        const stationJsonUrl = `${folder}/station.json`;
+        try {
+            const resp = await fetch(stationJsonUrl);
+            if (!resp.ok) return null;
+            const data = await resp.json();
+            const lineName = data.lineName || folder;
+            const routes = [];
+            if (data.up && data.up.length) {
+                const stations = data.up.map((s, idx) => ({ index:idx, name:s.name, type:s.type, lat:s.lat, lon:s.lon, englishName:s.englishName||s.name, enterAudio:`a${String(idx+1).padStart(3,'0')}_up.mp3`, exitAudio:`l${String(idx+1).padStart(3,'0')}_up.mp3` }));
+                routes.push({ routeId:`${folder}_up`, routeName:`${lineName} 上行`, stations, audioBasePath:`${folder}/`, gpsDisabled:false, format:'apep', dir:'up' });
+            }
+            if (data.down && data.down.length) {
+                const stations = data.down.map((s, idx) => ({ index:idx, name:s.name, type:s.type, lat:s.lat, lon:s.lon, englishName:s.englishName||s.name, enterAudio:`a${String(idx+1).padStart(3,'0')}_down.mp3`, exitAudio:`l${String(idx+1).padStart(3,'0')}_down.mp3` }));
+                routes.push({ routeId:`${folder}_down`, routeName:`${lineName} 下行`, stations, audioBasePath:`${folder}/`, gpsDisabled:false, format:'apep', dir:'down' });
+            }
+            return routes;
+        } catch(e) { return null; }
+    }
+
+    // ==================== CSV后备（仅当其他格式都没有时使用，有GPS）====================
+    async function loadCsvBackup(folder, info) {
+        const csvData = await loadCsvData();
+        if (!csvData) return null;
+        const csvLine = findCsvLine(csvData, folder);
+        if (!csvLine) return null;
+        const routes = [];
+        if (csvLine.upStations.length) {
+            let filtered = csvLine.upStations.filter(s => !info.filterStops.includes(s.name));
+            const stations = filtered.map((s, idx) => ({ index:idx, name:s.name, type:s.type, lat:s.lat, lon:s.lon, englishName:s.name, enterAudio:`a${String(idx+1).padStart(3,'0')}_up.mp3`, exitAudio:`l${String(idx+1).padStart(3,'0')}_up.mp3` }));
+            if (stations.length) routes.push({ routeId:`${folder}_up`, routeName:`${folder} 上行`, stations, audioBasePath:`${folder}/`, gpsDisabled:false, format:'csv', dir:'up' });
+        }
+        if (csvLine.downStations.length) {
+            let filtered = csvLine.downStations.filter(s => !info.filterStops.includes(s.name));
+            const stations = filtered.map((s, idx) => ({ index:idx, name:s.name, type:s.type, lat:s.lat, lon:s.lon, englishName:s.name, enterAudio:`a${String(idx+1).padStart(3,'0')}_down.mp3`, exitAudio:`l${String(idx+1).padStart(3,'0')}_down.mp3` }));
+            if (stations.length) routes.push({ routeId:`${folder}_down`, routeName:`${folder} 下行`, stations, audioBasePath:`${folder}/`, gpsDisabled:false, format:'csv', dir:'down' });
+        }
+        return routes;
+    }
+
+    // ==================== 凯伦格式（长文件名，无ID3，无GPS从CSV获取）====================
+async function loadKarenFormat(folder, info, progressCallback) {
+        // 检测: HEAD 001au-002-Up-Start.mp3 长文件名格式
+        let detected = false;
+        try { const d = await fetch(`${folder}/001au-002-Up-Start.mp3`, { method: 'HEAD' }); if (d.ok) detected = true; } catch(e) {}
+        if (!detected) return null;
+
+        const csvData = await loadCsvData();
+        const csvLine = findCsvLine(csvData, folder);
+        const hasCsv = !!csvLine;
+
+        const getCsvStation = (csvStations, idx) => {
+            if (!csvStations || idx >= csvStations.length) return null;
+            const s = csvStations[idx];
+            const { name, remark } = parseStationNameWithRemark(s.name);
+            return { name, remark, lat: s.lat, lon: s.lon };
+        };
+
+        // ========== 扫描上行 au 文件（确定站数）==========
+        let upAuKeys = [], consecutive404 = 0;
+        const maxScan = (info.upCount !== null) ? info.upCount : 100;
+        for (let i = 1; i <= maxScan; i++) {
+            const pad = String(i).padStart(3, '0');
+            const next = String(i + 1).padStart(3, '0');
+            try {
+                const res = await fetch(`${folder}/${pad}au-${next}-Up-Start.mp3`, { method: 'HEAD' });
+                if (res.ok) { upAuKeys.push(i); consecutive404 = 0; }
+                else { consecutive404++; if (consecutive404 >= 3) break; }
+            } catch(e) { consecutive404++; if (consecutive404 >= 3) break; }
+            if (progressCallback) progressCallback(0, `扫描凯伦格式 ${folder}...`);
+        }
+        if (upAuKeys.length === 0) return null;
+
+        // 凯伦没有ID3，站名全靠CSV，无CSV就用第X站
+        const totalUpStations = upAuKeys.length + 1;
+
+        // ========== 构建上行站点 ==========
+        const upStations = [];
+        for (let i = 0; i < totalUpStations; i++) {
+            const csvInfo = hasCsv ? getCsvStation(csvLine.upStations, i) : null;
+            const stationName = csvInfo ? csvInfo.name : (i === 0 ? '起点站' : `第${i}站`);
+            const remark = csvInfo ? csvInfo.remark : "";
+            const lat = csvInfo ? csvInfo.lat : null;
+            const lon = csvInfo ? csvInfo.lon : null;
+
+            let enterAudio = null, exitAudio = null;
+            if (i === 0) {
+                exitAudio = '001au-002-Up-Start.mp3';
+            } else {
+                enterAudio = `${String(i).padStart(3, '0')}bu-${String(i + 1).padStart(3, '0')}-Up-Arrive.mp3`;
+                if (i < totalUpStations - 1) {
+                    exitAudio = `${String(i + 1).padStart(3, '0')}au-${String(i + 2).padStart(3, '0')}-Up-Start.mp3`;
+                }
+            }
+            const stationType = i === 0 ? '起点站' : (i === totalUpStations - 1 ? '终点站' : '小站');
+            upStations.push({
+                index: i, name: stationName, type: stationType,
+                remark, lat, lon,
+                exitLat: lat, exitLon: lon, enterLat: lat, enterLon: lon,
+                englishName: csvInfo ? csvInfo.name : stationName,
+                enterAudio, exitAudio
+            });
+        }
+
+        // ========== 扫描下行 ad 文件 ==========
+        let downAdKeys = [];
+        consecutive404 = 0;
+        const downMax = info.downCount !== null ? info.downCount : 100;
+        const startSeq = upAuKeys.length + 1;
+        const upCount = upAuKeys.length;
+        for (let i = startSeq; i <= startSeq + downMax; i++) {
+            const pad = String(i).padStart(3, '0');
+            // ad 文件名的 dest 数字 = upCount - (i - startSeq)，即递减序列
+            const k = i - startSeq;
+            const dest = upCount - k;
+            if (dest < 1) break;
+            const destPad = String(dest).padStart(3, '0');
+            try {
+                const res = await fetch(`${folder}/${pad}ad-${destPad}-Dn-Start.mp3`, { method: 'HEAD' });
+                if (res.ok) { downAdKeys.push(i); consecutive404 = 0; }
+                else { consecutive404++; if (consecutive404 >= 3) break; }
+            } catch(e) { consecutive404++; if (consecutive404 >= 3) break; }
+            if (progressCallback) progressCallback(0, `扫描凯伦格式 ${folder}...`);
+        }
+
+        // ========== 构建下行站点 ==========
+        const downStations = [];
+        if (downAdKeys.length > 0) {
+            const totalDownStations = downAdKeys.length + 1;
+
+            for (let i = 0; i < totalDownStations; i++) {
+                const csvInfo = hasCsv ? getCsvStation(csvLine.downStations, i) : null;
+                const stationName = csvInfo ? csvInfo.name : (i === 0 ? '下行起点站' : `第${i}站`);
+                const remark = csvInfo ? csvInfo.remark : "";
+                const lat = csvInfo ? csvInfo.lat : null;
+                const lon = csvInfo ? csvInfo.lon : null;
+
+                let enterAudio = null, exitAudio = null;
+                if (i === 0) {
+                    const firstAdSeq = downAdKeys[0];
+                    const dest = upCount;
+                    exitAudio = `${String(firstAdSeq).padStart(3, '0')}ad-${String(dest).padStart(3, '0')}-Dn-Start.mp3`;
+                } else {
+                    const prevAdSeq = downAdKeys[i - 1];
+                    const destForEnter = upCount - (i - 1);
+                    enterAudio = `${String(prevAdSeq).padStart(3, '0')}bd-${String(destForEnter).padStart(3, '0')}-Dn-Arrive.mp3`;
+                    if (i < totalDownStations - 1) {
+                        const curAdSeq = downAdKeys[i];
+                        const destForExit = upCount - i;
+                        exitAudio = `${String(curAdSeq).padStart(3, '0')}ad-${String(destForExit).padStart(3, '0')}-Dn-Start.mp3`;
+                    }
+                }
+                const stationType = i === 0 ? '起点站' : (i === totalDownStations - 1 ? '终点站' : '小站');
+                downStations.push({
+                    index: i, name: stationName, type: stationType,
+                    remark, lat, lon,
+                    exitLat: lat, exitLon: lon, enterLat: lat, enterLon: lon,
+                    englishName: csvInfo ? csvInfo.name : stationName,
+                    enterAudio, exitAudio
+                });
+            }
+        }
+
+        const routes = [];
+        if (upStations.length) {
+            routes.push({
+                routeId: `${folder}_up`, routeName: `${folder} 上行`,
+                stations: upStations, audioBasePath: `${folder}/`,
+                gpsDisabled: !hasCsv, format: 'karen', dir: 'up'
+            });
+        }
+        if (downStations.length) {
+            routes.push({
+                routeId: `${folder}_down`, routeName: `${folder} 下行`,
+                stations: downStations, audioBasePath: `${folder}/`,
+                gpsDisabled: !hasCsv, format: 'karen', dir: 'down'
+            });
+        }
+        return routes;
+    }
+
+
+    // ==================== KL格式（kl.json，数据同APEP，音频用凯伦算法）====================
+    async function loadKlFormat(folder, info, progressCallback) {
+        const klUrl = `${folder}/kl.json`;
+        try {
+            const resp = await fetch(klUrl);
+            if (!resp.ok) return null;
+            const data = await resp.json();
+            if (!data.up && !data.down) return null;
+
+            const lineName = data.lineName || folder;
+            const routes = [];
+
+            // 上行（凯伦音频命名）
+            if (data.up && data.up.length) {
+                const upTotal = data.up.length;
+                const stations = [];
+                for (let idx = 0; idx < upTotal; idx++) {
+                    const s = data.up[idx];
+                    let enterAudio = null, exitAudio = null;
+                    if (idx === 0) {
+                        exitAudio = '001au-002-Up-Start.mp3';
+                    } else {
+                        enterAudio = `${String(idx).padStart(3, '0')}bu-${String(idx + 1).padStart(3, '0')}-Up-Arrive.mp3`;
+                        if (idx < upTotal - 1) {
+                            exitAudio = `${String(idx + 1).padStart(3, '0')}au-${String(idx + 2).padStart(3, '0')}-Up-Start.mp3`;
+                        }
+                    }
+                    stations.push({
+                        index: idx,
+                        name: s.name,
+                        type: s.type || (idx === 0 ? '起点站' : (idx === upTotal - 1 ? '终点站' : '小站')),
+                        lat: s.lat || null,
+                        lon: s.lon || null,
+                        englishName: s.englishName || s.name,
+                        enterAudio,
+                        exitAudio
+                    });
+                }
+                routes.push({
+                    routeId: `${folder}_up`,
+                    routeName: `${lineName} 上行`,
+                    stations,
+                    audioBasePath: `${folder}/`,
+                    gpsDisabled: false,
+                    format: 'karen',
+                    dir: 'up'
+                });
+            }
+
+            // 下行（凯伦音频命名，编号续接上行）
+            const upTotal = (data.up && data.up.length) ? data.up.length : 0;
+            const physicalUpCount = Math.max(0, upTotal - 1);
+            if (data.down && data.down.length) {
+                const downTotal = data.down.length;
+                const stations = [];
+                for (let idx = 0; idx < downTotal; idx++) {
+                    const s = data.down[idx];
+                    let enterAudio = null, exitAudio = null;
+                    if (idx === 0) {
+                        exitAudio = `${String(upTotal).padStart(3, '0')}ad-${String(physicalUpCount).padStart(3, '0')}-Dn-Start.mp3`;
+                    } else {
+                        enterAudio = `${String(upTotal + idx - 1).padStart(3, '0')}bd-${String(physicalUpCount - idx + 1).padStart(3, '0')}-Dn-Arrive.mp3`;
+                        if (idx < downTotal - 1) {
+                            exitAudio = `${String(upTotal + idx).padStart(3, '0')}ad-${String(physicalUpCount - idx).padStart(3, '0')}-Dn-Start.mp3`;
+                        }
+                    }
+                    stations.push({
+                        index: idx,
+                        name: s.name,
+                        type: s.type || (idx === 0 ? '起点站' : (idx === downTotal - 1 ? '终点站' : '小站')),
+                        lat: s.lat || null,
+                        lon: s.lon || null,
+                        englishName: s.englishName || s.name,
+                        enterAudio,
+                        exitAudio
+                    });
+                }
+                routes.push({
+                    routeId: `${folder}_down`,
+                    routeName: `${lineName} 下行`,
+                    stations,
+                    audioBasePath: `${folder}/`,
+                    gpsDisabled: false,
+                    format: 'karen',
+                    dir: 'down'
+                });
+            }
+
+            if (progressCallback) progressCallback(0, `加载KL格式 ${folder}...`);
+            return routes;
+        } catch(e) {
+            return null;
+        }
+    }
+
+    // ==================== 主加载（优先级控制）====================
+    let allRoutes = [], currentRouteIndex = 0;
+    function getAllRoutes() { return allRoutes; }
+    function getCurrentRoute() { return allRoutes[currentRouteIndex]; }
+    let isLoading = false;
+
+    // 单个文件夹加载（尝试所有格式优先级）
+    async function loadSingleFolder(folder, item, progressCallback) {
+        let routes = null;
+        routes = await loadApepTypeB(folder, item, progressCallback);
+        if (routes && routes.length) return routes;
+        routes = await loadApep(folder, item);
+        if (routes && routes.length) return routes;
+        routes = await loadBowenGps(folder, item, progressCallback);
+        if (routes && routes.length) return routes;
+        routes = await loadZhongAn(folder, item, progressCallback);
+        if (routes && routes.length) return routes;
+        routes = await loadBowenNoGps(folder, item, progressCallback);
+        if (routes && routes.length) return routes;
+        routes = await loadKlFormat(folder, item, progressCallback);
+        if (routes && routes.length) return routes;
+        routes = await loadKarenFormat(folder, item, progressCallback);
+        if (routes && routes.length) return routes;
+        routes = await loadCsvBackup(folder, item);
+        if (routes && routes.length) return routes;
+        return [];
+    }
+
+    async function loadAllRoutes(forceRescan = false, progressCallback) {
+        if (isLoading) return;
+        isLoading = true;
+        try {
+            const cacheKey = 'gps_bus_routes_cache_v30';
+            const lineListItems = await getLineListItems();
+            if (!lineListItems.length) { console.error("linelist.txt为空"); return; }
+            const lineListContent = JSON.stringify(lineListItems);
+            if (!forceRescan) {
+                // 尝试从缓存加载
+                const cached = localStorage.getItem(cacheKey);
+                if (cached) {
+                    try {
+                        const data = JSON.parse(cached);
+                        if (data && data.linelistContent === lineListContent && Array.isArray(data.routes)) {
+                            allRoutes = data.routes;
+                            // 为缓存中缺失的文件夹创建桩条目
+                            const cachedFolders = new Set();
+                            for (const r of allRoutes) {
+                                if (!r._stub) {
+                                    const f = r.routeId.replace(/_(up|down)$/, '');
+                                    cachedFolders.add(f);
+                                }
+                            }
+                            let added = 0;
+                            for (const item of lineListItems) {
+                                if (!cachedFolders.has(item.folder)) {
+                                    allRoutes.push(createStubEntry(item.folder, item));
+                                    added++;
+                                }
+                            }
+                            if (progressCallback) progressCallback(100, added ? `已从缓存加载（新增 ${added} 个未扫描线路）` : "已从缓存加载线路");
+                            return;
+                        }
+                    } catch(e) {}
+                }
+                // 无缓存：所有线路以未扫描状态列出
+                if (progressCallback) progressCallback(0, "列出线路...");
+                allRoutes = [];
+                for (const item of lineListItems) {
+                    allRoutes.push(createStubEntry(item.folder, item));
+                }
+                if (progressCallback) progressCallback(100, `列出 ${allRoutes.length} 条线路（全部未扫描）`);
+                return;
+            }
+            // forceRescan: 全量扫描
+            if (progressCallback) progressCallback(0, "正在全量扫描线路...");
+            allRoutes = [];
+            for (const item of lineListItems) {
+                const routes = await loadSingleFolder(item.folder, item, progressCallback);
+                if (routes && routes.length) {
+                    allRoutes.push(...routes);
+                } else {
+                    allRoutes.push(createStubEntry(item.folder, item));
+                }
+            }
+            // 卡密格式（全局）
+            try {
+                const kamiResp = await fetch('bzmnq.json');
+                if (kamiResp.ok) {
+                    const kamiData = await kamiResp.json();
+                    if (Array.isArray(kamiData)) {
+                        for (const route of kamiData) {
+                            let dir = 'up'; if (route.routeId && route.routeId.endsWith('_down')) dir = 'down';
+                            const fullName = route.routeName || route.routeId || '未命名';
+                            const stations = (route.stations || []).map((s, idx) => ({ index:idx, name:s.stationName, type:s.stationType, lat:s.lat!==undefined?s.lat:(s.enterGps?parseFloat(s.enterGps.split(' ')[0]):null), lon:s.lon!==undefined?s.lon:(s.enterGps?parseFloat(s.enterGps.split(' ')[1]):null), englishName:s.exitExt||s.stationName, enterAudio:s.enterAudioFile||'', exitAudio:s.exitAudioFile||'' }));
+                            allRoutes.push({ routeId:route.routeId, routeName:fullName, stations, audioBasePath:'audio/', gpsDisabled:route.gpsDisabled===true, format:'kami', dir });
+                        }
+                    }
+                }
+            } catch(e) { console.warn("加载卡密失败"); }
+            console.log(`共加载 ${allRoutes.length} 条线路`);
+            const cacheData = { routes: allRoutes, linelistContent: lineListContent };
+            localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+            if (progressCallback) progressCallback(100, "加载完成");
+        } finally { isLoading = false; }
+    }
+
+    // ==================== 公交业务核心（音频播放、状态机等）====================
+    let lineData = { lineName: "未知线路", up: [], down: [] };
+    let currentDir = 'up';
+    let currentStation = 0;
+    let currentPhase = 'arrived';
+    let targetStation = 1;
+    let autoEntered = new Set();
+    let autoLeft = new Set();
+    let currentAudio = null;
+    let currentAudioList = [];
+    let currentAudioBasePath = 'audio/';
+    let gpsDisabledForCurrentRoute = false;
+    let generalSensitivity = 70, exitSensitivity = 70, enterSensitivity = 70;
+
+    function getCurrentStationList() { return currentDir === 'up' ? lineData.up : lineData.down; }
+    function getCurrentRouteObj() { return allRoutes[currentRouteIndex]; }
+
+    const FORMAT_NAMES = {
+        apepTypeB: 'APEP TypeB', apep: 'APEP', bowen: '博闻',
+        zhongAn: '中安', karen: '凯伦', kami: '卡密',
+        csv: 'CSV', stub: '未扫描'
+    };
+    function getFormatName(route) {
+        if (!route) return '--';
+        if (route._stub) return '未扫描';
+        return FORMAT_NAMES[route.format] || route.format || '--';
+    }
+
+    // 缓存保存辅助
+    async function saveRouteCache() {
+        const lineListItems = await getLineListItems();
+        if (!lineListItems.length) return;
+        const lineListContent = JSON.stringify(lineListItems);
+        const cacheData = { routes: allRoutes, linelistContent: lineListContent };
+        localStorage.setItem('gps_bus_routes_cache_v30', JSON.stringify(cacheData));
+    }
+
+    function stopAllAudio() {
+        if (currentAudio) { currentAudio.pause(); currentAudio.currentTime = 0; currentAudio = null; }
+        for (let a of currentAudioList) { a.pause(); a.currentTime = 0; }
+        currentAudioList = [];
+    }
+
+    function playZhongAnEnter(station) {
+        if (!station.enterAudio) return;
+        const parts = station.enterAudio.split('+');
+        if (parts.length !== 2) return;
+        const url1 = `${currentAudioBasePath}${parts[0]}.mp3`;
+        const url2 = `${currentAudioBasePath}${parts[1]}.mp3`;
+        const audio1 = new Audio(url1);
+        const audio2 = new Audio(url2);
+        currentAudioList = [audio1, audio2];
+        audio1.play().catch(e=>console.warn);
+        audio1.onended = () => { audio2.play().catch(e=>console.warn); };
+        currentAudio = audio1;
+    }
+
+    function playAudio(type, stationIdx) {
+        stopAllAudio();
+        const route = getCurrentRouteObj();
+        if (!route) return;
+        const stationList = getCurrentStationList();
+        const station = stationList[stationIdx];
+        if (!station) return;
+        let filename = '';
+        const dirCode = currentDir === 'up' ? 'up' : 'down';
+        
+        if (route.format === 'bowen') {
+            const key = (type === 'depart') ? station.exitAudio : station.enterAudio;
+            if (!key) return;
+            filename = `${key}.mp3`;
+        } else if (route.format === 'apep' || route.format === 'csv') {
+            const audioNum = stationIdx + 1;
+            const prefix = (type === 'depart') ? 'l' : 'a';
+            filename = `${prefix}${String(audioNum).padStart(3, '0')}_${dirCode}.mp3`;
+        } else if (route.format === 'apepTypeB') {
+            // APEP TypeB 使用博闻文件名算法
+            if (type === 'depart') {
+                if (station.exitAudio) {
+                    filename = `${station.exitAudio}.mp3`;
+                } else {
+                    // 终点站没有出站音频
+                    return;
+                }
+            } else {
+                if (station.enterAudio) {
+                    filename = `${station.enterAudio}.mp3`;
+                } else {
+                    // 起点站没有进站音频
+                    return;
+                }
+            }
+        } else if (route.format === 'kami') {
+            filename = (type === 'depart') ? station.exitAudio : station.enterAudio;
+            if (!filename) return;
+        } else if (route.format === 'karen') {
+            filename = (type === 'depart') ? station.exitAudio : station.enterAudio;
+            if (!filename) return;
+        } else if (route.format === 'zhongAn') {
+            if (type === 'depart') {
+                filename = `${station.exitAudio}.mp3`;
+            } else {
+                playZhongAnEnter(station);
+                return;
+            }
+        } else {
+            filename = (type === 'depart') ? station.exitAudio : station.enterAudio;
+            if (!filename) return;
+        }
+        const audioUrl = `${currentAudioBasePath}${filename}`;
+        console.log(`[播放音频] ${type} | ${route.routeName} | ${route.format} | ${audioUrl}`);
+        const audio = new Audio(audioUrl);
+        audio.play().catch(e => console.warn("音频播放失败:", audioUrl, e));
+        currentAudio = audio;
+    }
+
+    function showWelcomeMessage() {
+        const stationList = getCurrentStationList();
+        if (stationList.length === 0) return;
+        const endStation = stationList[stationList.length-1];
+        const endName = endStation.name;
+        let routeName = getCurrentRouteObj()?.routeName || lineData.lineName;
+        routeName = routeName.replace(/\s*(上行|下行)$/, '');
+        const welcomeText = `乘客们，你们好，您现在乘坐的是${routeName}公交车，方向${endName}，上车请主动买票，文明规范乘车从你我做起。`;
+        startWelcomeLoop(welcomeText);
+    }
+
+    function replayAnnouncement() {
+        stopAllAudio();
+        stopWelcomeLoop();
+        const stationList = getCurrentStationList();
+        if (currentStation === 0 && currentPhase === 'arrived') { showWelcomeMessage(); return; }
+        if (currentPhase === 'arrived') {
+            const station = stationList[currentStation];
+            if (station) { playAudio('arrive', currentStation); startDisplayLoop(`${station.name} 到了`, `We are arriving at ${station.englishName}`); }
+        } else if (currentPhase === 'departed') {
+            const nextStation = stationList[targetStation];
+            if (nextStation) { playAudio('depart', currentStation); startDisplayLoop(`下一站 ${nextStation.name}`, `Next stop is ${nextStation.englishName}`); }
+        }
+    }
+
+    function performDepart() {
+        const stationList = getCurrentStationList();
+        if (currentStation >= stationList.length-1) { switchToOppositeRoute(); return; }
+        const nextIdx = currentStation+1;
+        const nextStation = stationList[nextIdx];
+        if (!nextStation) return;
+        stopWelcomeLoop();
+        playAudio('depart', currentStation);
+        startDisplayLoop(`下一站 ${nextStation.name}`, `Next stop is ${nextStation.englishName}`);
+        currentPhase = 'departed';
+        targetStation = nextIdx;
+        updateUI();
+        console.log(`[出站] 前往 ${nextStation.name}`);
+    }
+
+    function performArrive() {
+        const stationList = getCurrentStationList();
+        if (targetStation >= stationList.length) return;
+        const station = stationList[targetStation];
+        if (!station) return;
+        stopWelcomeLoop();
+        playAudio('arrive', targetStation);
+        startDisplayLoop(`${station.name} 到了`, `We are arriving at ${station.englishName}`);
+        currentStation = targetStation;
+        currentPhase = 'arrived';
+        targetStation = currentStation + 1;
+        if (getCurrentRouteObj()?.format !== 'bowen') autoEntered.clear();
+        updateUI();
+        console.log(`[进站] 到达 ${station.name}`);
+    }
+
+    function forceJumpToStation(idx) {
+        const stationList = getCurrentStationList();
+        if (idx < 0 || idx >= stationList.length) return;
+        stopAllAudio();
+        stopWelcomeLoop();
+        stopDisplayLoop();
+        currentStation = idx;
+        currentPhase = 'arrived';
+        targetStation = currentStation + 1;
+        const station = stationList[idx];
+        if (idx === 0) showWelcomeMessage();
+        else { playAudio('arrive', idx); startDisplayLoop(`${station.name} 到了`, `We are arriving at ${station.englishName}`); }
+        updateUI();
+        console.log(`[强制跳站] 跳到 ${station.name}`);
+    }
+
+    function manualNext() { if (currentPhase === 'arrived') performDepart(); else if (currentPhase === 'departed') performArrive(); }
+    function switchDirection() { switchToOppositeRoute(); }
+    function interruptAudio() { stopAllAudio(); }
+    function jumpToStation(idx) { forceJumpToStation(idx); }
+
+    function switchToOppositeRoute() {
+        const currentId = getCurrentRouteObj()?.routeId || '';
+        let oppositeId = '';
+        if (currentId.endsWith('_up')) oppositeId = currentId.slice(0, -3) + '_down';
+        else if (currentId.endsWith('_down')) oppositeId = currentId.slice(0, -5) + '_up';
+        if (oppositeId) {
+            const idx = allRoutes.findIndex(r => r.routeId === oppositeId);
+            if (idx !== -1) { routeSelect.selectedIndex = idx; switchToRoute(idx); return; }
+        }
+        let nextIdx = (currentRouteIndex + 1) % allRoutes.length;
+        routeSelect.selectedIndex = nextIdx; switchToRoute(nextIdx);
+    }
+
+    function switchToRoute(routeIndex) {
+        if (routeIndex < 0 || routeIndex >= allRoutes.length) return;
+        stopAllAudio();
+        stopDisplayLoop(); stopWelcomeLoop();
+        currentRouteIndex = routeIndex;
+        const route = allRoutes[currentRouteIndex];
+
+        // 处理桩条目（未扫描线路）
+        if (route._stub) {
+            lineData.lineName = route._folder;
+            lineNameDiv.textContent = route._folder + ' (未扫描)';
+            formatBadge.textContent = getFormatName(route);
+            currentDir = 'up';
+            lineData.up = [];
+            lineData.down = [];
+            currentStation = 0; currentPhase = 'arrived'; targetStation = 1;
+            autoEntered.clear(); autoLeft.clear();
+            updateUI();
+            showStubScanUI(route);
+            return;
+        }
+
+        // 已扫描线路：密码检查
+        const folder = route.routeId.replace(/_(up|down)$/, '');
+        if (!checkRoutePassword(folder)) {
+            // 密码错误，尝试切换到下一个线路
+            const nextIdx = (routeIndex + 1) % allRoutes.length;
+            if (nextIdx !== routeIndex) {
+                routeSelect.selectedIndex = nextIdx;
+                switchToRoute(nextIdx);
+            }
+            return;
+        }
+
+        currentAudioBasePath = route.audioBasePath;
+        gpsDisabledForCurrentRoute = route.gpsDisabled === true;
+        let routeName = route.routeName.replace(/\s*(上行|下行)$/, '');
+        lineData.lineName = routeName;
+        lineNameDiv.textContent = routeName;
+        formatBadge.textContent = getFormatName(route);
+        currentDir = route.dir || 'up';
+        if (currentDir === 'up') { lineData.up = route.stations; lineData.down = []; }
+        else { lineData.up = []; lineData.down = route.stations; }
+        currentStation = 0; currentPhase = 'arrived'; targetStation = 1;
+        autoEntered.clear(); autoLeft.clear();
+        updateUI();
+        showWelcomeMessage();
+    }
+
+    // ==================== GPS 自动触发 ====================
+    let watchId = null, lastPos = null, currentSpeed = 0, avgSpeed = 0, speedHistory = [];
+    const SPEED_HISTORY_LEN = 5;
+    let currentLat = null, currentLon = null, gpsConnectedFlag = false;
+
+    function haversineDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371000;
+        const dLat = (lat2-lat1)*Math.PI/180, dLon = (lon2-lon1)*Math.PI/180;
+        const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    // ==================== 坐标系转换 WGS-84 ↔ GCJ-02 ====================
+    const COORD_PI = Math.PI;
+    const COORD_A = 6378245.0;
+    const COORD_EE = 0.00669342162296594323;
+    let useGcj02 = false; // 默认 WGS-84
+
+    function outOfChina(lat, lon) {
+        return lon < 72.004 || lon > 137.8347 || lat < 0.8293 || lat > 55.8271;
+    }
+
+    function transformLat(x, y) {
+        let ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+        ret += (20.0 * Math.sin(6.0 * x * COORD_PI) + 20.0 * Math.sin(2.0 * x * COORD_PI)) * 2.0 / 3.0;
+        ret += (20.0 * Math.sin(y * COORD_PI) + 40.0 * Math.sin(y / 3.0 * COORD_PI)) * 2.0 / 3.0;
+        ret += (160.0 * Math.sin(y / 12.0 * COORD_PI) + 320.0 * Math.sin(y * COORD_PI / 30.0)) * 2.0 / 3.0;
+        return ret;
+    }
+
+    function transformLon(x, y) {
+        let ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+        ret += (20.0 * Math.sin(6.0 * x * COORD_PI) + 20.0 * Math.sin(2.0 * x * COORD_PI)) * 2.0 / 3.0;
+        ret += (20.0 * Math.sin(x * COORD_PI) + 40.0 * Math.sin(x / 3.0 * COORD_PI)) * 2.0 / 3.0;
+        ret += (150.0 * Math.sin(x / 12.0 * COORD_PI) + 300.0 * Math.sin(x / 30.0 * COORD_PI)) * 2.0 / 3.0;
+        return ret;
+    }
+
+    function wgs84ToGcj02(wgsLat, wgsLon) {
+        if (outOfChina(wgsLat, wgsLon)) return { lat: wgsLat, lon: wgsLon };
+        let dLat = transformLat(wgsLon - 105.0, wgsLat - 35.0);
+        let dLon = transformLon(wgsLon - 105.0, wgsLat - 35.0);
+        let radLat = wgsLat / 180.0 * COORD_PI;
+        let magic = Math.sin(radLat);
+        magic = 1 - COORD_EE * magic * magic;
+        let sqrtMagic = Math.sqrt(magic);
+        dLat = (dLat * 180.0) / ((COORD_A * (1 - COORD_EE)) / (magic * sqrtMagic) * COORD_PI);
+        dLon = (dLon * 180.0) / (COORD_A / sqrtMagic * Math.cos(radLat) * COORD_PI);
+        return { lat: wgsLat + dLat, lon: wgsLon + dLon };
+    }
+
+    function gcj02ToWgs84(gcjLat, gcjLon) {
+        if (outOfChina(gcjLat, gcjLon)) return { lat: gcjLat, lon: gcjLon };
+        let wgs = wgs84ToGcj02(gcjLat, gcjLon);
+        return { lat: 2 * gcjLat - wgs.lat, lon: 2 * gcjLon - wgs.lon };
+    }
+
+    // GPS 坐标转有效坐标：如果数据源是 GCJ-02 则转 GPS（WGS-84→GCJ-02），用于距离计算
+    function toEffectiveCoords(lat, lon) {
+        if (useGcj02 && lat != null && lon != null) {
+            return wgs84ToGcj02(lat, lon);
+        }
+        return { lat, lon };
+    }
+
+    function coordDisplay(lat, lon) {
+        if (lat == null || lon == null) return '--';
+        if (useGcj02) {
+            const g = wgs84ToGcj02(lat, lon);
+            return `${g.lat.toFixed(6)},${g.lon.toFixed(6)}`;
+        }
+        return `${lat.toFixed(6)},${lon.toFixed(6)}`;
+    }
+
+    function updateSpeed(gpsSpeed, lat, lon, timestamp) {
+        if (gpsSpeed !== null && !isNaN(gpsSpeed) && gpsSpeed >= 0) {
+            currentSpeed = gpsSpeed * 3.6;
+            speedStatusSpan.innerText = `速度: ${currentSpeed.toFixed(1)} km/h`;
+            speedHistory.push(currentSpeed);
+            if (speedHistory.length > SPEED_HISTORY_LEN) speedHistory.shift();
+            avgSpeed = speedHistory.reduce((a,b)=>a+b,0) / speedHistory.length;
+        } else { speedStatusSpan.innerText = `速度: -- km/h`; }
+        if (lastPos && lastPos.timestamp && timestamp) {
+            const dt = (timestamp - lastPos.timestamp) / 1000;
+            if (dt > 0.1 && dt < 5) {
+                const dist = haversineDistance(lastPos.lat, lastPos.lon, lat, lon);
+                const speedMs = dist / dt;
+                if (speedMs >= 0 && speedMs < 50) {
+                    const calcSpeed = speedMs * 3.6;
+                    speedHistory.push(calcSpeed);
+                    if (speedHistory.length > SPEED_HISTORY_LEN) speedHistory.shift();
+                    avgSpeed = speedHistory.reduce((a,b)=>a+b,0) / speedHistory.length;
+                }
+            }
+        }
+        lastPos = { lat, lon, timestamp };
+    }
+
+    function playGPSConnectionSound() {
+        if (gpsConnectedFlag) return;
+        gpsConnectedFlag = true;
+        const a1 = new Audio('voice/888.mp3');
+        a1.play().catch(e=>console.warn);
+        a1.onended = () => { const a2 = new Audio('voice/999.mp3'); a2.play().catch(e=>console.warn); };
+    }
+
+function checkGPSAutoTrigger(lat, lon) {
+    if (gpsDisabledForCurrentRoute) return;
+    
+    const route = getCurrentRouteObj();
+    const stationList = getCurrentStationList();
+    if (stationList.length === 0) return;
+    
+    // ========== 坐标系处理：CSV 线路强制使用 GCJ-02 转换 ==========
+    let effectiveLat = lat, effectiveLon = lon;
+    
+    // 如果当前线路是 CSV 格式（坐标来自 CSV 文件），GPS 坐标需要转换到 GCJ-02 才能匹配
+    if (route && route.format === 'csv') {
+        const converted = wgs84ToGcj02(lat, lon);
+        effectiveLat = converted.lat;
+        effectiveLon = converted.lon;
+    } else if (useGcj02) {
+        // 用户手动开启的 GCJ-02 模式
+        const converted = wgs84ToGcj02(lat, lon);
+        effectiveLat = converted.lat;
+        effectiveLon = converted.lon;
+    }
+    
+    lat = effectiveLat;
+    lon = effectiveLon;
+    
+    // ========== 博闻格式：点触发 ==========
+    if (route?.format === 'bowen') {
+        let triggered = false;
+        for (let i=0;i<stationList.length;i++) {
+            const s = stationList[i];
+            const exitLat = s.exitLat !== undefined ? s.exitLat : s.lat;
+            const exitLon = s.exitLon !== undefined ? s.exitLon : s.lon;
+            const enterLat = s.enterLat !== undefined ? s.enterLat : s.lat;
+            const enterLon = s.enterLon !== undefined ? s.enterLon : s.lon;
+            
+            if (exitLat != null && exitLon != null) {
+                const dist = haversineDistance(lat, lon, exitLat, exitLon);
+                if (!triggered) distanceStatusSpan.innerText = `距离: ${s.name} 出口 ${Math.round(dist)}m`;
+                if (dist <= exitSensitivity && !autoLeft.has(i)) {
+                    autoLeft.add(i);
+                    if (currentStation !== i || currentPhase !== 'arrived') forceJumpToStation(i);
+                    performDepart();
+                    triggered = true; return;
+                } else if (dist > exitSensitivity && autoLeft.has(i)) autoLeft.delete(i);
+            }
+        }
+        for (let i=0;i<stationList.length;i++) {
+            const s = stationList[i];
+            const enterLat = s.enterLat !== undefined ? s.enterLat : s.lat;
+            const enterLon = s.enterLon !== undefined ? s.enterLon : s.lon;
+            if (enterLat != null && enterLon != null && !triggered) {
+                const dist = haversineDistance(lat, lon, enterLat, enterLon);
+                if (!triggered) distanceStatusSpan.innerText = `距离: ${s.name} 入口 ${Math.round(dist)}m`;
+                if (dist <= enterSensitivity && !autoEntered.has(i)) {
+                    autoEntered.add(i);
+                    forceJumpToStation(i);
+                    triggered = true; return;
+                } else if (dist > enterSensitivity && autoEntered.has(i)) autoEntered.delete(i);
+            }
+        }
+        if (!triggered) {
+            let minDist = Infinity, nearestName = '', nearestType = '';
+            for (let s of stationList) {
+                const exitLat = s.exitLat !== undefined ? s.exitLat : s.lat;
+                const exitLon = s.exitLon !== undefined ? s.exitLon : s.lon;
+                const enterLat = s.enterLat !== undefined ? s.enterLat : s.lat;
+                const enterLon = s.enterLon !== undefined ? s.enterLon : s.lon;
+                if (exitLat != null) { const d = haversineDistance(lat,lon,exitLat,exitLon); if (d<minDist) { minDist=d; nearestName=s.name; nearestType='出口'; } }
+                if (enterLat != null) { const d = haversineDistance(lat,lon,enterLat,enterLon); if (d<minDist) { minDist=d; nearestName=s.name; nearestType='入口'; } }
+            }
+            if (minDist !== Infinity) distanceStatusSpan.innerText = `距离: ${nearestName} ${nearestType} ${Math.round(minDist)}m`;
+            else distanceStatusSpan.innerText = `距离: --`;
+        }
+        return;
+    }
+    
+    // ========== 范围触发（APEP、APEP TypeB、CSV、中安、卡密、凯伦等）==========
+    let nearestIdx = -1, minDist = Infinity;
+    for (let i=0;i<stationList.length;i++) {
+        const s = stationList[i];
+        if (s.lat == null || s.lon == null) continue;
+        const dist = haversineDistance(lat, lon, s.lat, s.lon);
+        if (dist < minDist) { minDist = dist; nearestIdx = i; }
+    }
+    if (nearestIdx === -1) return;
+    
+    const station = stationList[nearestIdx];
+    const isInside = minDist <= generalSensitivity;
+    const isStart = (station.type === '起点站'), isEnd = (station.type === '终点站');
+    
+    distanceStatusSpan.innerText = `距离: ${station.name} ${minDist.toFixed(1)}m`;
+    
+    if (isStart) {
+        if (!isInside && !autoLeft.has(nearestIdx)) {
+            if (currentPhase === 'arrived' && currentStation === nearestIdx) { autoLeft.add(nearestIdx); performDepart(); }
+        } else if (isInside) autoLeft.delete(nearestIdx);
+        return;
+    }
+    
+    if (isEnd) {
+        if (isInside && !autoEntered.has(nearestIdx)) { autoEntered.add(nearestIdx); forceJumpToStation(nearestIdx); }
+        else if (!isInside && autoEntered.has(nearestIdx)) { autoEntered.delete(nearestIdx); switchDirection(); }
+        return;
+    }
+    
+    if (isInside && !autoEntered.has(nearestIdx)) {
+        if (currentPhase === 'arrived' && currentStation === nearestIdx) return;
+        autoEntered.add(nearestIdx); forceJumpToStation(nearestIdx);
+    } else if (!isInside && currentPhase === 'arrived' && currentStation === nearestIdx) {
+        if (autoEntered.has(nearestIdx)) autoEntered.delete(nearestIdx);
+        performDepart();
+    }
+}
+    function updateNextStopProgress() {
+        const stationList = getCurrentStationList();
+        if (stationList.length === 0 || currentPhase !== 'departed' || targetStation >= stationList.length) {
+            progressSection.style.display = 'none'; return;
+        }
+        const nextStation = stationList[targetStation];
+        let targetLat = null, targetLon = null;
+        const route = getCurrentRouteObj();
+        if (route?.format === 'bowen' || route?.format === 'apepTypeB') {
+            targetLat = nextStation.enterLat !== undefined ? nextStation.enterLat : nextStation.lat;
+            targetLon = nextStation.enterLon !== undefined ? nextStation.enterLon : nextStation.lon;
+        } else {
+            targetLat = nextStation.lat;
+            targetLon = nextStation.lon;
+        }
+        if (targetLat === null || targetLon === null || currentLat === null || currentLon === null) { progressSection.style.display = 'none'; return; }
+        const gpsPos = toEffectiveCoords(currentLat, currentLon);
+        if (gpsPos.lat === null || gpsPos.lon === null) { progressSection.style.display = 'none'; return; }
+        const dist = haversineDistance(gpsPos.lat, gpsPos.lon, targetLat, targetLon);
+        let startLat = null, startLon = null;
+        const curStation = stationList[currentStation];
+        if (route?.format === 'bowen' || route?.format === 'apepTypeB') {
+            startLat = curStation.exitLat !== undefined ? curStation.exitLat : curStation.lat;
+            startLon = curStation.exitLon !== undefined ? curStation.exitLon : curStation.lon;
+        } else {
+            startLat = curStation.lat;
+            startLon = curStation.lon;
+        }
+        if (startLat === null || startLon === null) { progressSection.style.display = 'none'; return; }
+        const totalDist = haversineDistance(startLat, startLon, targetLat, targetLon);
+        if (totalDist <= 0) { progressSection.style.display = 'none'; return; }
+        let percent = (1 - dist / totalDist) * 100;
+        if (percent < 0) percent = 0; if (percent > 100) percent = 100;
+        progressFill.style.width = percent + '%';
+        progressPercentSpan.innerText = Math.round(percent) + '%';
+        if (avgSpeed > 0.5) {
+            const minutes = (dist / 1000) / avgSpeed * 60;
+            if (minutes < 1) etaSpan.innerText = `剩余 ${Math.round(minutes * 60)} 秒`;
+            else etaSpan.innerText = `剩余 ${Math.floor(minutes)} 分 ${Math.round((minutes % 1) * 60)} 秒`;
+        } else etaSpan.innerText = `剩余 --`;
+        progressSection.style.display = 'flex';
+    }
+
+    function startGPS() {
+        if (!navigator.geolocation) { gpsStatusSpan.innerText = "GPS不支持"; return; }
+        if (watchId) navigator.geolocation.clearWatch(watchId);
+        watchId = navigator.geolocation.watchPosition(p => {
+            const lat = p.coords.latitude, lon = p.coords.longitude, acc = p.coords.accuracy;
+            const gpsSpeed = (p.coords.speed !== undefined && p.coords.speed !== null) ? p.coords.speed : null;
+            const timestamp = p.timestamp;
+            currentLat = lat; currentLon = lon;
+            if (!gpsConnectedFlag && !gpsDisabledForCurrentRoute) playGPSConnectionSound();
+            updateSpeed(gpsSpeed, lat, lon, timestamp);
+            if (!gpsDisabledForCurrentRoute) {
+                const coordLabel = useGcj02 ? 'GCJ-02' : 'WGS-84';
+                gpsStatusSpan.innerText = `${coordLabel}: ${coordDisplay(lat, lon)} | 精度${acc.toFixed(1)}m | 通用:${generalSensitivity}m 出站:${exitSensitivity}m 进站:${enterSensitivity}m`;
+                checkGPSAutoTrigger(lat, lon);
+            } else {
+                gpsStatusSpan.innerText = `GPS: 此线路无GPS (${coordDisplay(lat, lon)})`;
+            }
+            updateStationDistances();
+            updateNextStopProgress();
+        }, e => { gpsStatusSpan.innerText = `GPS错误`; }, { enableHighAccuracy: true, maximumAge: 1000 });
+    }
+
+    // ==================== UI 交互 ====================
+    const routeSelect = document.getElementById('routeSelect');
+    const rescanBtn = document.getElementById('rescanBtn');
+    const scanRouteBtn = document.getElementById('scanRouteBtn');
+    const reverseStationBtn = document.getElementById('reverseStationBtn');
+    const nextStopBtn = document.getElementById('nextStopBtn');
+    const replayBtn = document.getElementById('replayBtn');
+    const switchDirBtn = document.getElementById('switchDirBtn');
+    const interruptBtn = document.getElementById('interruptBtn');
+    const generalSlider = document.getElementById('generalSensitivitySlider');
+    const generalVal = document.getElementById('generalSensitivityVal');
+    const exitSlider = document.getElementById('exitSensitivitySlider');
+    const exitVal = document.getElementById('exitSensitivityVal');
+    const enterSlider = document.getElementById('enterSensitivitySlider');
+    const enterVal = document.getElementById('enterSensitivityVal');
+    const dirNameSpan = document.getElementById('dirName');
+    const currentStationNameSpan = document.getElementById('currentStationName');
+    const phaseIconSpan = document.getElementById('phaseIcon');
+    const gpsStatusSpan = document.getElementById('gpsStatus');
+    const distanceStatusSpan = document.getElementById('distanceStatus');
+    const speedStatusSpan = document.getElementById('speedStatus');
+    const stationListDiv = document.getElementById('stationListContainer');
+    const lineNameDiv = document.getElementById('lineName');
+    const gpsDisabledWarning = document.getElementById('gpsDisabledWarning');
+    const coordToggleSpan = document.getElementById('coordToggle');
+    const formatBadge = document.getElementById('formatBadge');
+    const updateWarningDiv = document.getElementById('updateWarning');
+    const progressSection = document.getElementById('progressSection');
+    const progressFill = document.getElementById('nextStopProgressFill');
+    const progressPercentSpan = document.getElementById('progressPercent');
+    const etaSpan = document.getElementById('etaText');
+    const progressArea = document.getElementById('progressArea');
+    const progressBar = document.getElementById('progressBar');
+    const loadingText = document.getElementById('loadingText');
+
+    function updateProgress(percent, text) {
+        progressArea.style.display = 'block';
+        progressBar.style.width = percent + '%';
+        loadingText.innerText = text;
+        if (percent === 100) setTimeout(() => progressArea.style.display = 'none', 500);
+    }
+
+    function updateStationDistances() {
+        const stationList = getCurrentStationList();
+        if (stationList.length === 0) return;
+        stationListDiv.innerHTML = '';
+        const route = getCurrentRouteObj();
+        // 距离计算用有效坐标（GCJ-02 时自动转）
+        const gpsPos = toEffectiveCoords(currentLat, currentLon);
+        stationList.forEach((s, i) => {
+            let distText = '';
+            let lat = null, lon = null;
+            if (route?.format === 'bowen' || route?.format === 'apepTypeB') {
+                lat = s.exitLat !== undefined ? s.exitLat : s.lat;
+                lon = s.exitLon !== undefined ? s.exitLon : s.lon;
+            } else {
+                lat = s.lat;
+                lon = s.lon;
+            }
+            if (gpsPos.lat != null && gpsPos.lon != null && lat != null && lon != null) {
+                const dist = haversineDistance(gpsPos.lat, gpsPos.lon, lat, lon);
+                distText = `${Math.round(dist)}m`;
+            } else distText = '无坐标';
+            let typeText = (s.type === '起点站') ? '起点站' : (s.type === '终点站') ? '终点站' : '';
+            const coordStr = (lat != null && lon != null) ? coordDisplay(lat, lon) : '';
+            const d = document.createElement('div');
+            d.className = 'station-item';
+            if (currentStation === i && currentPhase === 'arrived') d.classList.add('active');
+            if (currentPhase === 'departed' && targetStation === i) d.classList.add('active');
+            d.innerHTML = `<span class="station-name">${s.name}</span><span class="station-type">${typeText}</span><span style="margin-left: auto; font-size: 11px;">${distText}</span><span style="font-size:10px;color:#888;margin-left:6px;">${coordStr}</span><button class="station-del" data-idx="${i}" style="background:none;border:none;color:#ff4444;cursor:pointer;font-size:16px;margin-left:4px;line-height:1;">×</button>`;
+            d.onclick = (e) => { if (e.target.classList.contains('station-del')) return; jumpToStation(i); };
+            stationListDiv.appendChild(d);
+        });
+        // 删除站点事件
+        stationListDiv.querySelectorAll('.station-del').forEach(btn => {
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                const idx = parseInt(e.target.dataset.idx);
+                const route = getCurrentRouteObj();
+                if (!route || route._stub) return;
+                const stations = route.stations;
+                if (stations.length <= 1) return;
+                stations.splice(idx, 1);
+                // 重新编号
+                stations.forEach((st, j) => { st.index = j; });
+                // 修正类型
+                if (stations.length > 0) stations[0].type = '起点站';
+                if (stations.length > 1) stations[stations.length - 1].type = '终点站';
+                for (let j = 1; j < stations.length - 1; j++) stations[j].type = '小站';
+                // 调整当前站索引
+                if (currentStation > idx) currentStation--;
+                else if (currentStation === idx) currentStation = Math.min(idx, stations.length - 1);
+                if (targetStation > idx) targetStation--;
+                else if (targetStation === idx) targetStation = Math.min(idx + 1, stations.length - 1);
+                saveRouteCache();
+                updateUI();
+            };
+        });
+    }
+
+    function updateUI() {
+        const stationList = getCurrentStationList();
+        if (stationList.length === 0) return;
+        const startName = stationList[0]?.name || '', endName = stationList[stationList.length-1]?.name || '';
+        dirNameSpan.innerText = `${startName} → ${endName}`;
+        const cur = stationList[currentStation];
+        if (cur) currentStationNameSpan.innerText = cur.name;
+        phaseIconSpan.innerText = currentPhase === 'arrived' ? '(进站)' : '(出站)';
+        if (gpsDisabledForCurrentRoute) gpsDisabledWarning.style.display = 'inline';
+        else gpsDisabledWarning.style.display = 'none';
+        updateStationDistances();
+    }
+
+    function populateRouteSelect() {
+        routeSelect.innerHTML = '';
+        allRoutes.forEach((route, idx) => {
+            const option = document.createElement('option');
+            option.value = idx;
+            let display = route.routeName;
+            if (route._stub) display = route._folder + ' (未扫描)';
+            else {
+                const fmt = getFormatName(route);
+                if (fmt) display += ` [${fmt}]`;
+                if (route.gpsDisabled) display += ' *无GPS';
+            }
+            option.textContent = display;
+            option.dataset.display = display;
+            routeSelect.appendChild(option);
+        });
+        if (allRoutes.length) routeSelect.selectedIndex = 0;
+    }
+
+    // 灵敏度预设
+    const presetStorageKey = 'gps_sensitivity_presets_v3';
+    const currentSensitivityKey = 'gps_current_sensitivity';
+    let presets = { 1: { exit:70, enter:35 }, 2: { exit:35, enter:70 }, 3: { exit:50, enter:50 }, 4: { exit:80, enter:80 }, 5: { exit:100, enter:100 } };
+    function loadPresets() {
+        try { const stored = localStorage.getItem(presetStorageKey); if (stored) { const p = JSON.parse(stored); if (p) presets = { ...presets, ...p }; } } catch(e) {}
+        document.getElementById('preset3Exit').value = presets[3].exit;
+        document.getElementById('preset3Enter').value = presets[3].enter;
+        document.getElementById('preset4Exit').value = presets[4].exit;
+        document.getElementById('preset4Enter').value = presets[4].enter;
+        document.getElementById('preset5Exit').value = presets[5].exit;
+        document.getElementById('preset5Enter').value = presets[5].enter;
+    }
+    function savePresets() { localStorage.setItem(presetStorageKey, JSON.stringify(presets)); }
+    function applyPreset(num) {
+        if (presets[num]) {
+            exitSensitivity = presets[num].exit; enterSensitivity = presets[num].enter;
+            exitSlider.value = exitSensitivity; exitVal.innerText = exitSensitivity;
+            enterSlider.value = enterSensitivity; enterVal.innerText = enterSensitivity;
+            saveCurrentSensitivity();
+        }
+    }
+    function setPreset(num, exitValNum, enterValNum) {
+        presets[num] = { exit: exitValNum, enter: enterValNum };
+        savePresets();
+        if (num===3) { document.getElementById('preset3Exit').value = exitValNum; document.getElementById('preset3Enter').value = enterValNum; }
+        else if (num===4) { document.getElementById('preset4Exit').value = exitValNum; document.getElementById('preset4Enter').value = enterValNum; }
+        else if (num===5) { document.getElementById('preset5Exit').value = exitValNum; document.getElementById('preset5Enter').value = enterValNum; }
+    }
+    function saveCurrentSensitivity() { localStorage.setItem(currentSensitivityKey, JSON.stringify({ exit: exitSensitivity, enter: enterSensitivity })); }
+    function loadCurrentSensitivity() {
+        try { const stored = localStorage.getItem(currentSensitivityKey); if (stored) { const { exit, enter } = JSON.parse(stored); if (typeof exit === 'number') { exitSensitivity = exit; enterSensitivity = enter; exitSlider.value = exit; exitVal.innerText = exit; enterSlider.value = enter; enterVal.innerText = enter; } } } catch(e) {}
+    }
+
+    // 折叠面板
+    const panelHeader = document.getElementById('sensitivityHeader');
+    const panelContent = document.getElementById('sensitivityContent');
+    panelHeader.addEventListener('click', () => { panelHeader.classList.toggle('open'); panelContent.classList.toggle('open'); });
+
+    // 公告
+    const noticeBtn = document.getElementById('noticeBtn');
+    const modal = document.getElementById('noticeModal');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const noticeBody = document.getElementById('noticeBody');
+    function renderNoticeContent(text) {
+        let html = text.replace(/\[([^\]]+)\]/g, (match, filename) => {
+            const lower = filename.toLowerCase();
+            if (lower.endsWith('.mp4')||lower.endsWith('.webm')||lower.endsWith('.ogg')) return `<video controls autoplay loop muted><source src="${filename}" type="video/mp4">不支持视频</video>`;
+            else if (lower.endsWith('.jpg')||lower.endsWith('.jpeg')||lower.endsWith('.png')||lower.endsWith('.gif')||lower.endsWith('.webp')) return `<img src="${filename}" alt="图片">`;
+            else return match;
+        });
+        html = html.replace(/\n/g, '<br>');
+        noticeBody.innerHTML = html;
+    }
+    async function loadNotice() {
+        try { const resp = await fetch('notice.tz'); if (resp.ok) renderNoticeContent(await resp.text()); else noticeBody.innerHTML = '暂无公告内容。'; } catch(e) { noticeBody.innerHTML = '无法加载公告。'; }
+    }
+    function showModal() { modal.style.display = 'block'; }
+    function hideModal() { modal.style.display = 'none'; }
+    function checkFirstVisit() { if (!localStorage.getItem('has_visited_notice_v1')) { localStorage.setItem('has_visited_notice_v1', 'true'); showModal(); } }
+
+    // 解析站名和备注（·后面的为备注）
+    function parseStationNameWithRemark(rawName) {
+        if (!rawName) return { name: rawName, remark: '' };
+        const dotIndex = rawName.indexOf('·');
+        if (dotIndex === -1) return { name: rawName, remark: '' };
+        return {
+            name: rawName.substring(0, dotIndex).trim(),
+            remark: rawName.substring(dotIndex + 1).trim()
+        };
+    }
+
+    // 初始化
+    async function init() {
+        await loadPasswords();
+        await loadAllRoutes(false, (p,t)=>updateProgress(p,t));
+        populateRouteSelect();
+        if (allRoutes.length) switchToRoute(0);
+        loadPresets(); loadCurrentSensitivity();
+        generalSlider.addEventListener('input', () => { generalSensitivity = +generalSlider.value; generalVal.innerText = generalSensitivity; });
+        exitSlider.addEventListener('input', () => { exitSensitivity = +exitSlider.value; exitVal.innerText = exitSensitivity; saveCurrentSensitivity(); });
+        enterSlider.addEventListener('input', () => { enterSensitivity = +enterSlider.value; enterVal.innerText = enterSensitivity; saveCurrentSensitivity(); });
+        document.querySelectorAll('.preset-btn[data-preset]').forEach(btn => btn.addEventListener('click', () => applyPreset(parseInt(btn.dataset.preset))));
+        document.querySelectorAll('.preset-save').forEach(btn => btn.addEventListener('click', () => {
+            const preset = parseInt(btn.dataset.preset);
+            let exitValNum = parseInt(document.getElementById(`preset${preset}Exit`).value);
+            let enterValNum = parseInt(document.getElementById(`preset${preset}Enter`).value);
+            if (isNaN(exitValNum)) exitValNum = 50; if (isNaN(enterValNum)) enterValNum = 50;
+            if (exitValNum < 1) exitValNum = 1; if (exitValNum > 150) exitValNum = 150;
+            if (enterValNum < 1) enterValNum = 1; if (enterValNum > 150) enterValNum = 150;
+            setPreset(preset, exitValNum, enterValNum); applyPreset(preset);
+        }));
+        nextStopBtn.onclick = manualNext;
+        replayBtn.onclick = replayAnnouncement;
+        switchDirBtn.onclick = switchDirection;
+        interruptBtn.onclick = interruptAudio;
+        rescanBtn.onclick = async () => {
+            if (isLoading) return;
+            updateProgress(0, "全量重新扫描中...");
+            await loadAllRoutes(true, (p,t) => updateProgress(p,t));
+            populateRouteSelect();
+            if (allRoutes.length) { routeSelect.selectedIndex = 0; switchToRoute(0); }
+            updateProgress(100, "全量扫描完成");
+            setTimeout(() => progressArea.style.display = 'none', 1000);
+        };
+        scanRouteBtn.onclick = async () => {
+            if (isLoading) return;
+            const route = getCurrentRouteObj();
+            if (!route) return;
+            const folder = route._stub ? route._folder : route.routeId.replace(/_(up|down)$/, '');
+            await scanSingleRoute(folder);
+        };
+        reverseStationBtn.onclick = () => {
+            const route = getCurrentRouteObj();
+            if (!route || route._stub) return;
+            // 找到当前文件夹的上下行两条线路，互换 stations 数据
+            const folder = route.routeId.replace(/_(up|down)$/, '');
+            const upRoute = allRoutes.find(r => r.routeId === folder + '_up');
+            const downRoute = allRoutes.find(r => r.routeId === folder + '_down');
+            if (!upRoute || !downRoute) return;
+            // 互换站数据
+            const tmp = upRoute.stations;
+            upRoute.stations = downRoute.stations;
+            downRoute.stations = tmp;
+            // 修正 index
+            upRoute.stations.forEach((st, j) => { st.index = j; });
+            downRoute.stations.forEach((st, j) => { st.index = j; });
+            currentStation = 0; targetStation = 1;
+            autoEntered.clear(); autoLeft.clear();
+            saveRouteCache();
+            // 重新加载当前方向
+            const routeIdx = allRoutes.findIndex(r => r.routeId === route.routeId);
+            if (routeIdx !== -1) { routeSelect.selectedIndex = routeIdx; switchToRoute(routeIdx); }
+        };
+        routeSelect.addEventListener('change', () => { const idx = parseInt(routeSelect.value); if (!isNaN(idx)) switchToRoute(idx); });
+        const routeSearch = document.getElementById('routeSearch');
+        if (routeSearch) {
+            routeSearch.addEventListener('input', () => {
+                const keyword = routeSearch.value.trim().toLowerCase();
+                for (const opt of routeSelect.options) {
+                    const display = (opt.dataset.display || '').toLowerCase();
+                    opt.style.display = (!keyword || display.includes(keyword)) ? '' : 'none';
+                }
+                if (routeSelect.selectedOptions[0]?.style.display === 'none') {
+                    for (const opt of routeSelect.options) {
+                        if (opt.style.display !== 'none') { routeSelect.value = opt.value; switchToRoute(parseInt(opt.value)); break; }
+                    }
+                }
+            });
+        }
+        coordToggleSpan?.addEventListener('click', () => {
+            useGcj02 = !useGcj02;
+            if (coordToggleSpan) coordToggleSpan.innerText = useGcj02 ? 'GCJ-02' : 'WGS-84';
+        });
+        startGPS();
+        await loadNotice();
+        noticeBtn.onclick = showModal;
+        closeModalBtn.onclick = hideModal;
+        modal.addEventListener('click', (e) => { if (e.target === modal) hideModal(); });
+        checkFirstVisit();
+    }
+    init();
+})();
+</script>
+</body>
+</html>
